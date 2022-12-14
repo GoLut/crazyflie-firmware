@@ -45,6 +45,7 @@
 #include "stm32fxxx.h"
 // Application includes.
 #include "i2c_drv.h"
+#include "i2cdev.h"
 #include "config.h"
 #include "nvicconf.h"
 #include "sleepus.h"
@@ -392,7 +393,12 @@ void i2cdrvCreateMessageIntAddr(I2cMessage *message,
   message->slaveAddress = slaveAddress;
   message->direction = direction;
   message->isInternal16bit = IsInternal16;
-  message->internalAddress = intAddress;
+  if(intAddress == I2CDEV_NO_MEM_ADDR){
+    message->internalAddress = I2C_NO_INTERNAL_ADDRESS;
+  }
+  else{
+    message->internalAddress = intAddress;
+  }
   message->messageLength = length;
   message->status = i2cAck;
   message->buffer = (uint8_t *)buffer;

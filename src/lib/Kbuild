@@ -44,3 +44,8 @@ obj-y += vl53l1/core/src/vl53l1_error_strings.o
 obj-y += vl53l1/core/src/vl53l1_register_funcs.o
 obj-y += vl53l1/core/src/vl53l1_silicon_core.o
 obj-y += vl53l1/core/src/vl53l1_wait.o
+
+# TCA
+obj-y += TCA9548A_driver/src/tca9548a.o
+obj-y += TCA9548A_driver/src/driver_tca9548a_basic.o
+obj-y += TCA9548A_driver/src/driver_tca9548a_interface.o

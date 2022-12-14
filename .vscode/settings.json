@@ -5,6 +5,12 @@
         "**/bower_components": true
     },
     "files.associations": {
-        "bootloader.h": "c"
+        "bootloader.h": "c",
+        "colordeck.h": "c",
+        "driver_tca9548a_interface.h": "c",
+        "tca9548a.h": "c",
+        "stdbool.h": "c",
+        "i2cdev.h": "c",
+        "i2c_drv.h": "c"
     }
 }
