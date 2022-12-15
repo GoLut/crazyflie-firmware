@@ -45,7 +45,15 @@ obj-y += vl53l1/core/src/vl53l1_register_funcs.o
 obj-y += vl53l1/core/src/vl53l1_silicon_core.o
 obj-y += vl53l1/core/src/vl53l1_wait.o
 
-# TCA
+# TCA9548A
 obj-y += TCA9548A_driver/src/tca9548a.o
 obj-y += TCA9548A_driver/src/driver_tca9548a_basic.o
 obj-y += TCA9548A_driver/src/driver_tca9548a_interface.o
+
+#TCS34725
+obj-y += TCS34725_driver/src/driver_tcs34725.o
+obj-y += TCS34725_driver/src/driver_tcs34725_interface.o
+obj-y += TCS34725_driver/src/driver_tcs34725_interrupt.o
+
+#the color struct and conversion calculations
+obj-y += TCS34725_driver/src/color.o

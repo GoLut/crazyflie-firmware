@@ -61,6 +61,8 @@ INCLUDES += -I$(LIB)/STM32F4xx_StdPeriph_Driver/inc
 INCLUDES += -I$(LIB)/vl53l1 -I$(LIB)/vl53l1/core/inc
 INCLUDES += -I$(KBUILD_OUTPUT)/include/generated
 INCLUDES += -I$(LIB)/TCA9548A_driver/src
+INCLUDES += -I$(LIB)/TCS34725_driver/src
+
 
 # Here we tell Kbuild where to look for Kbuild files which will tell the
 # buildsystem which sources to build
