@@ -93,6 +93,7 @@ static void colorDeckInit()
     isInit = true;
 }
 
+
 void read_raw_data_to_struct(tcs34725_Color_data *data_struct, tcs34725_handle_t *device_handle){
     //switch the i2c mux to the right channel
     if (data_struct->ID ==0){
@@ -110,14 +111,23 @@ void read_raw_data_to_struct(tcs34725_Color_data *data_struct, tcs34725_handle_t
     if (result != 0){DEBUG_PRINT("WARNING: no data received\n");}
 }
 
+/**
+ * This function resets the TCS34725 sensor by
+ * Reading the data and discarding the result (causes some internal sensor trigger to reset and pull the interrupt line high)
+ * Sending a reset command. A semi working i2c reset command.
+ * @param data_struct Color data struct of the sensor in question
+ * @param tcs_device_handle The TCS34725 sensor handle
+ * @param tca_device_handle The TCA9548A sensor handle
+ */
+
 void reset_tcs34725_sensor(tcs34725_Color_data *data_struct, tcs34725_handle_t *tcs_device_handle, tca9548a_handle_t * tca_device_handle){
     //reading some initial values. if nothing is available yet we ignore the result
     read_raw_data_to_struct(data_struct, tcs_device_handle);
-    //disable the interrupt flag
-//    noInterrupts();
+    //disable the interrupt flag'
+    vTaskSuspendAll(); //suspends the scheduler
     if(data_struct->ID == 0){isr_flag_sens0 = false;}
     else{isr_flag_sens1 = false;}
-//    interrupts();
+    xTaskResumeAll();
 
     //because the pins are sometimes left zero and not caught by the interrupt
     if (data_struct->ID == 0){
@@ -134,6 +144,11 @@ void reset_tcs34725_sensor(tcs34725_Color_data *data_struct, tcs34725_handle_t *
 }
 
 //Interrupt Service Routines (NOTE for now called using GPIO polling)
+/**
+ * Sets the flag to true and saves the time instance when the sample was recorded
+ * NOTE that this might go wrong if samples are provided faster than they can be processed.
+ * Because the time for a new sample is set before the previous has been processed.
+ */
 void isr_sens0()
 {
     isr_flag_sens0 = true;
@@ -146,7 +161,52 @@ void isr_sens1()
     //save the time at wicht the interrupt was generated
     tcs34725_data_struct1.time = (uint32_t) xTaskGetTickCount();
 }
-//Listener to the GPIO pins
+
+/**
+ * This function checks if the interrupt flags have been set.
+ * If it is set it reads the data from the sensor using i2c.
+ * Then it processes the RAW data to normalized values RGB and HSV
+ * Afterwards it sets the new data available flag.
+ */
+void readAndProcessColorSensorsIfDataAvaiable() {
+    //check interrupt flag sens 0 and amount of samples already taken.
+    if (isr_flag_sens0) {
+        read_raw_data_to_struct(&tcs34725_data_struct0, &tcs34725_handle_sens0);
+        isr_flag_sens0 = false;
+        //NOTE that the time is by definition not per see correct.
+        processRawData(&tcs34725_data_struct0);
+        //for processing the delta data. We need 2 new available samples and we set this parameter to indicate so.
+        new_data_flag0 = true;
+    }
+
+    //check interrupt flag sens 1 and amount of samples aready taken.
+    if (isr_flag_sens1) {
+        read_raw_data_to_struct(&tcs34725_data_struct1, &tcs34725_handle_sens1);
+        isr_flag_sens1 = false;
+        //NOTE that the time is by definition not per see correct.
+        processRawData(&tcs34725_data_struct1);
+        //for processing the delta data. We need 2 new available samples and we set this parameter to indicate so.
+        new_data_flag1 = true;
+    }
+}
+
+/**
+ * This function takes 2 color data structs and processes the delta RGB and HSV data.
+ * It saves the result in both structs. and sets the "new_data_flag0" back to false.
+ */
+void processDeltaColorSensorData() {
+    if ((new_data_flag0 == true) && (new_data_flag1 == true)) {
+        //we have new data on both sensor now we process the data
+        processDeltaData(&tcs34725_data_struct0, &tcs34725_data_struct1);
+        new_data_flag0 = false;
+        new_data_flag1 = false;
+    }
+}
+/**
+ * Listener to the GPIO pins
+ * This function is a replacement for an pin attached ISR on the rising edge. a to-do for later implementations
+ * For now it polls the status of the pins and if the conditions are matched we set the flag.
+ */
 void gpioMonitorTask(void* arg){
     // Wait for system to start
     systemWaitStart();
@@ -160,7 +220,7 @@ void gpioMonitorTask(void* arg){
         //TODO when done testing remove this delay
         vTaskDelayUntil(&xLastWakeTime, M2T(1000));
         DEBUG_PRINT("detecting GPIO LEVELS");
-        //TODO Remove when done debugging
+        //TODO Remove when done debugging, also check if the set conditions don't cause any issues.
         uint8_t tcs34725_0_int_value = (uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN);
         uint8_t tcs34725_1_int_value = (uint8_t) digitalRead(TCS34725_1_INT_GPIO_PIN);
         DEBUG_PRINT("Sens0: %d, Sens1: %d", tcs34725_0_int_value, tcs34725_1_int_value);
@@ -180,18 +240,22 @@ void gpioMonitorTask(void* arg){
 void colorDeckTask(void* arg){
     // Wait for system to start
     systemWaitStart();
-    // the last time the function was called
-    TickType_t xLastWakeTime = xTaskGetTickCount();
     //startup delay
-    const TickType_t xDelay = 100; // portTICK_PERIOD_MS;
+    const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
+
+    //we reset the device because sometimes it stays hanging in the interrupt low state.
+    reset_tcs34725_sensor(&tcs34725_data_struct0, &tcs34725_handle_sens0, &tca9548a_handle);
+    reset_tcs34725_sensor(&tcs34725_data_struct1, &tcs34725_handle_sens1, &tca9548a_handle);
+
     bool tmp = true;
     DEBUG_PRINT("%d\n", tmp);
 
     while (1) {
-        vTaskDelayUntil(&xLastWakeTime, M2T(1000));
-
-        //This should be printing 0 cause no sensor is connected.
+        //we read the data if the interrupt pins of the color sensors have been detected low.
+        readAndProcessColorSensorsIfDataAvaiable();
+        //When both sensors have new data available we process the delta
+        processDeltaColorSensorData();
     }
 }
 
@@ -214,3 +278,9 @@ static const DeckDriver ColorDriver = {
 };
 
 DECK_DRIVER(ColorDriver);
+
+LOG_GROUP_START(COLORDECKDATA)
+                LOG_ADD_CORE(LOG_FLOAT, hue_delta, &tcs34725_data_struct0.hsv_delta_data.h)
+                LOG_ADD_CORE(LOG_FLOAT, sat_delta, &tcs34725_data_struct0.hsv_delta_data.s)
+                LOG_ADD_CORE(LOG_FLOAT, val_delta, &tcs34725_data_struct0.hsv_delta_data.v)
+LOG_GROUP_STOP(COLORDECKDATA)

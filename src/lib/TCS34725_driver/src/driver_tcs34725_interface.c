@@ -158,7 +158,7 @@ void tcs34725_interface_debug_print(const char *const fmt, ...)
     va_start(l_Arg, fmt);
     DEBUG_PRINT(fmt);
     va_end(l_Arg);
-    DEBUG_PRINT("\n");
+//    DEBUG_PRINT("\n");
     
     //https://jameshfisher.com/2016/11/23/c-varargs/
 }

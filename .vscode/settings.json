@@ -11,6 +11,8 @@
         "tca9548a.h": "c",
         "stdbool.h": "c",
         "i2cdev.h": "c",
-        "i2c_drv.h": "c"
+        "i2c_drv.h": "c",
+        "param.h": "c",
+        "driver_tcs34725_interrupt.h": "c"
     }
 }
