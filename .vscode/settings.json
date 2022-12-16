@@ -13,6 +13,7 @@
         "i2cdev.h": "c",
         "i2c_drv.h": "c",
         "param.h": "c",
-        "driver_tcs34725_interrupt.h": "c"
+        "driver_tcs34725_interrupt.h": "c",
+        "*.tcc": "c"
     }
 }

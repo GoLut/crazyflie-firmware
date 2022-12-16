@@ -71,7 +71,7 @@ uint8_t tca9548a_basic_set_one_channel(tca9548a_channel_t channels, tca9548a_han
     if (platform->current_active_channel != 0)
     {
         if(tca9548a_configure_channels(platform->current_active_channel, TCA9548A_CHANNEL_DISABLED, platform) != 0){
-            tca9548a_interface_debug_print("tca9548a: set_one_channel failed.\n");
+            tca9548a_interface_debug_print("tca9548a: set_one_channel failed \n");
             return 1;
         }
     }

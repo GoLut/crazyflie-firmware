@@ -63,33 +63,21 @@ static void colorDeckInit()
     xTaskCreate(colorDeckTask,COLORDECK_TASK_NAME, COLORDECK_TASK_STACKSIZE, NULL, COLORDECK_TASK_PRI, NULL);
     xTaskCreate(gpioMonitorTask, GPIOMONITOR_TASK_NAME, GPIOMONITOR_TASK_STACKSIZE, NULL, GPIOMONITOR_TASK_PRI, NULL);
 
-    //init the hardware:
-    //TCA9548
-    result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
-    if (result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull");}
-    else{DEBUG_PRINT("Init of tca9548a successful");}
-
+//set hardware specific parameters and GPIO
     //TCS34725
+    pinMode(TCS34725_0_INT_GPIO_PIN, INPUT_PULLUP);
+    pinMode(TCS34725_1_INT_GPIO_PIN, INPUT_PULLUP);
+
     //set some data struct parameters
     tcs34725_data_struct0.ID = 0;
     tcs34725_data_struct1.ID = 1;
     isr_flag_sens0 = false;
     isr_flag_sens1 = false;
 
-    //select the correct channel for the i2c mux for initialization
-    vTaskDelay(1);
-    tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
-    result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
-    if (result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful");}
-    else{DEBUG_PRINT("Init of tcs34725 sens 0 successful");}
-    // switching i2c channel
-    vTaskDelay(1);
-    tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
-    //init second color sensor
-    result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
-    if (result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful");}
-    else{DEBUG_PRINT("Init of tcs34725 sens 1 successful");}
-    //we are done init
+    //TCA9548
+    pinMode(TCA9548A_RESET_GPIO_PIN, OUTPUT);
+
+    // we are done init
     isInit = true;
 }
 
@@ -132,12 +120,12 @@ void reset_tcs34725_sensor(tcs34725_Color_data *data_struct, tcs34725_handle_t *
     //because the pins are sometimes left zero and not caught by the interrupt
     if (data_struct->ID == 0){
         if(!digitalRead(TCS34725_0_INT_GPIO_PIN)){
-            tca9548a_basic_set_one_channel(TCA9548A_CHANNEL7, tca_device_handle);
+            tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, tca_device_handle);
             tcs34725_clear_interrupt(tcs_device_handle);
         }
     }else{
         if(!digitalRead(TCS34725_1_INT_GPIO_PIN)){
-            tca9548a_basic_set_one_channel(TCA9548A_CHANNEL6, tca_device_handle);
+            tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, tca_device_handle);
             tcs34725_clear_interrupt(tcs_device_handle);
         }
     }
@@ -200,6 +188,7 @@ void processDeltaColorSensorData() {
         processDeltaData(&tcs34725_data_struct0, &tcs34725_data_struct1);
         new_data_flag0 = false;
         new_data_flag1 = false;
+        DEBUG_PRINT("Processed delta DATA");
     }
 }
 /**
@@ -219,18 +208,18 @@ void gpioMonitorTask(void* arg){
     while(1) {
         //TODO when done testing remove this delay
         vTaskDelayUntil(&xLastWakeTime, M2T(1000));
-        DEBUG_PRINT("detecting GPIO LEVELS");
-        //TODO Remove when done debugging, also check if the set conditions don't cause any issues.
-        uint8_t tcs34725_0_int_value = (uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN);
-        uint8_t tcs34725_1_int_value = (uint8_t) digitalRead(TCS34725_1_INT_GPIO_PIN);
-        DEBUG_PRINT("Sens0: %d, Sens1: %d", tcs34725_0_int_value, tcs34725_1_int_value);
+        // DEBUG_PRINT("detecting GPIO LEVELS\n");
+        // //TODO Remove when done debugging, also check if the set conditions don't cause any issues.
+        // uint8_t tcs34725_0_int_value = (uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN);
+        // uint8_t tcs34725_1_int_value = (uint8_t) digitalRead(TCS34725_1_INT_GPIO_PIN);
+        // DEBUG_PRINT("Sens0: %d, Sens1: %d \n", tcs34725_0_int_value, tcs34725_1_int_value);
 
         if (!isr_flag_sens0 && !((uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN))){
-            isr_flag_sens0 = true;
+            isr_sens0();
             DEBUG_PRINT("Sens0: int pin low detected.\n");
         }
         if (!isr_flag_sens1 && !((uint8_t) digitalRead(TCS34725_1_INT_GPIO_PIN))){
-            isr_flag_sens1 = true;
+            isr_sens1();
             DEBUG_PRINT("Sens1: int pin low detected.\n");
         }
     }
@@ -244,14 +233,39 @@ void colorDeckTask(void* arg){
     const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
 
+    // vTaskSuspendAll(); //suspends the scheduler
+    //init the hardware:
+    //TCA9548
+    result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
+    if (result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
+    else{DEBUG_PRINT("Init of tca9548a successful\n");}
+
+    //select the correct channel for the i2c mux for initialization
+    vTaskDelay(1);
+    tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
+    result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
+    if (result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
+    else{DEBUG_PRINT("Init of tcs34725 sens 0 successful\n");}
+    
+    // switching i2c channel
+    // vTaskDelay(1);
+    tca9548a_basic_set_one_channel(TCA9548A_CHANNEL6, &tca9548a_handle);
+    
+    //init second color sensor
+    result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
+    if (result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
+    else{DEBUG_PRINT("Init of tcs34725 sens 1 successful\n");}
+
     //we reset the device because sometimes it stays hanging in the interrupt low state.
     reset_tcs34725_sensor(&tcs34725_data_struct0, &tcs34725_handle_sens0, &tca9548a_handle);
     reset_tcs34725_sensor(&tcs34725_data_struct1, &tcs34725_handle_sens1, &tca9548a_handle);
 
-    bool tmp = true;
-    DEBUG_PRINT("%d\n", tmp);
+    // xTaskResumeAll();//resume the scheduler
+
+    TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
+        vTaskDelayUntil(&xLastWakeTime, M2T(1000));
         //we read the data if the interrupt pins of the color sensors have been detected low.
         readAndProcessColorSensorsIfDataAvaiable();
         //When both sensors have new data available we process the delta

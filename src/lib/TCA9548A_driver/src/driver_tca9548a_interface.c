@@ -48,12 +48,13 @@ uint8_t tca9548a_interface_iic_deinit(void)
 uint8_t tca9548a_interface_iic_read(uint8_t addr, uint8_t *buf, uint16_t len)
 {
     // //we only need to send the slave address with a read
-    uint8_t result = (uint8_t) i2cdevReadByte(I2C1_DEV, addr, I2CDEV_NO_MEM_ADDR, buf);
+    uint8_t result = (uint8_t) i2cdevRead(I2C1_DEV, addr,1, buf);
 
     //flip because 2 libraries are interfeering
     if(result){
        return 0; 
     }else{
+        tca9548a_interface_debug_print("TCA: No successfull read..");
         return 1;
     }
 }
@@ -98,11 +99,10 @@ void tca9548a_interface_delay_ms(uint32_t ms)
 uint8_t tca9548a_interface_gpio_set(bool b)
 {
     if (b){
-       digitalWrite(TCA9548A_RESET_GPIO_PIN,HIGH); 
+        digitalWrite(TCA9548A_RESET_GPIO_PIN,HIGH); 
     }else{
         digitalWrite(TCA9548A_RESET_GPIO_PIN, LOW);
     }
-
     return 0;
 }
 
