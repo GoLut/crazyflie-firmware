@@ -48,6 +48,58 @@ static tcs34725_handle_t tcs34725_handle_sens0, tcs34725_handle_sens1;    /**< t
 //Color data collected by the tcs sensors:
 tcs34725_Color_data tcs34725_data_struct0, tcs34725_data_struct1; //the data buffers of the tcs34725 sensors
 
+
+void read_raw_data_to_struct(tcs34725_Color_data *data_struct, tcs34725_handle_t *device_handle){
+    //switch the i2c mux to the right channel
+    if (data_struct->ID ==0){
+        tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
+    } else{
+        tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
+    }
+    //read the data over i2c
+    result = tcs34725_interrupt_read((uint16_t *)&data_struct->rgb_raw_data.r,
+                                     (uint16_t *)&data_struct->rgb_raw_data.g,
+                                     (uint16_t *)&data_struct->rgb_raw_data.b,
+                                     (uint16_t *)&data_struct->rgb_raw_data.c,
+                                     device_handle);
+
+    if (result != 0){DEBUG_PRINT("WARNING: no data received\n");}
+}
+
+
+
+/**
+ * This function resets the TCS34725 sensor by
+ * Reading the data and discarding the result (causes some internal sensor trigger to reset and pull the interrupt line high)
+ * Sending a reset command. A semi working i2c reset command.
+ * @param data_struct Color data struct of the sensor in question
+ * @param tcs_device_handle The TCS34725 sensor handle
+ * @param tca_device_handle The TCA9548A sensor handle
+ */
+
+void reset_tcs34725_sensor(tcs34725_Color_data *data_struct, tcs34725_handle_t *tcs_device_handle, tca9548a_handle_t * tca_device_handle){
+    //reading some initial values. if nothing is available yet we ignore the result
+    read_raw_data_to_struct(data_struct, tcs_device_handle);
+    //disable the interrupt flag'
+    // vTaskSuspendAll(); //suspends the scheduler
+    if(data_struct->ID == 0){isr_flag_sens0 = false;}
+    else{isr_flag_sens1 = false;}
+    // xTaskResumeAll();
+
+    //because the pins are sometimes left zero and not caught by the interrupt
+    if (data_struct->ID == 0){
+        if(!digitalRead(TCS34725_0_INT_GPIO_PIN)){
+            tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, tca_device_handle);
+            tcs34725_clear_interrupt(tcs_device_handle);
+        }
+    }else{
+        if(!digitalRead(TCS34725_1_INT_GPIO_PIN)){
+            tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, tca_device_handle);
+            tcs34725_clear_interrupt(tcs_device_handle);
+        }
+    }
+}
+
 //Color deck main task init
 static void colorDeckInit()
 {
@@ -77,59 +129,34 @@ static void colorDeckInit()
     //TCA9548
     pinMode(TCA9548A_RESET_GPIO_PIN, OUTPUT);
 
+
+    //init the hardware:
+    //TCA9548
+    result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
+    if (result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
+    else{DEBUG_PRINT("Init of tca9548a successful\n");}
+
+    //select the correct channel for the i2c mux for initialization
+    vTaskDelay(1);
+    tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
+    result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
+    if (result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
+    else{DEBUG_PRINT("Init of tcs34725 sens 0 successful\n");}
+    
+    // switching i2c channel
+    // vTaskDelay(1);
+    tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
+    
+    //init second color sensor
+    result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
+    if (result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
+    else{DEBUG_PRINT("Init of tcs34725 sens 1 successful\n");}
+
     // we are done init
     isInit = true;
 }
 
 
-void read_raw_data_to_struct(tcs34725_Color_data *data_struct, tcs34725_handle_t *device_handle){
-    //switch the i2c mux to the right channel
-    if (data_struct->ID ==0){
-        tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
-    } else{
-        tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
-    }
-    //read the data over i2c
-    result = tcs34725_interrupt_read((uint16_t *)&data_struct->rgb_raw_data.r,
-                                     (uint16_t *)&data_struct->rgb_raw_data.g,
-                                     (uint16_t *)&data_struct->rgb_raw_data.b,
-                                     (uint16_t *)&data_struct->rgb_raw_data.c,
-                                     device_handle);
-
-    if (result != 0){DEBUG_PRINT("WARNING: no data received\n");}
-}
-
-/**
- * This function resets the TCS34725 sensor by
- * Reading the data and discarding the result (causes some internal sensor trigger to reset and pull the interrupt line high)
- * Sending a reset command. A semi working i2c reset command.
- * @param data_struct Color data struct of the sensor in question
- * @param tcs_device_handle The TCS34725 sensor handle
- * @param tca_device_handle The TCA9548A sensor handle
- */
-
-void reset_tcs34725_sensor(tcs34725_Color_data *data_struct, tcs34725_handle_t *tcs_device_handle, tca9548a_handle_t * tca_device_handle){
-    //reading some initial values. if nothing is available yet we ignore the result
-    read_raw_data_to_struct(data_struct, tcs_device_handle);
-    //disable the interrupt flag'
-    vTaskSuspendAll(); //suspends the scheduler
-    if(data_struct->ID == 0){isr_flag_sens0 = false;}
-    else{isr_flag_sens1 = false;}
-    xTaskResumeAll();
-
-    //because the pins are sometimes left zero and not caught by the interrupt
-    if (data_struct->ID == 0){
-        if(!digitalRead(TCS34725_0_INT_GPIO_PIN)){
-            tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, tca_device_handle);
-            tcs34725_clear_interrupt(tcs_device_handle);
-        }
-    }else{
-        if(!digitalRead(TCS34725_1_INT_GPIO_PIN)){
-            tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, tca_device_handle);
-            tcs34725_clear_interrupt(tcs_device_handle);
-        }
-    }
-}
 
 //Interrupt Service Routines (NOTE for now called using GPIO polling)
 /**
@@ -233,34 +260,9 @@ void colorDeckTask(void* arg){
     const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
 
-    // vTaskSuspendAll(); //suspends the scheduler
-    //init the hardware:
-    //TCA9548
-    result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
-    if (result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
-    else{DEBUG_PRINT("Init of tca9548a successful\n");}
-
-    //select the correct channel for the i2c mux for initialization
-    vTaskDelay(1);
-    tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
-    result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
-    if (result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
-    else{DEBUG_PRINT("Init of tcs34725 sens 0 successful\n");}
-    
-    // switching i2c channel
-    // vTaskDelay(1);
-    tca9548a_basic_set_one_channel(TCA9548A_CHANNEL6, &tca9548a_handle);
-    
-    //init second color sensor
-    result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
-    if (result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
-    else{DEBUG_PRINT("Init of tcs34725 sens 1 successful\n");}
-
     //we reset the device because sometimes it stays hanging in the interrupt low state.
     reset_tcs34725_sensor(&tcs34725_data_struct0, &tcs34725_handle_sens0, &tca9548a_handle);
     reset_tcs34725_sensor(&tcs34725_data_struct1, &tcs34725_handle_sens1, &tca9548a_handle);
-
-    // xTaskResumeAll();//resume the scheduler
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
