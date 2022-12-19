@@ -125,7 +125,7 @@ uint8_t tcs34725_interface_iic_write(uint8_t addr, uint8_t reg, uint8_t *buf, ui
     }
     
     // uint8_t result = (uint8_t)i2c_dev_tcs34725->write(tempBuffer, len+1);
-    uint8_t result = (uint8_t)i2cdevWrite(I2C1_DEV, addr, len+1,  buf);
+    uint8_t result = (uint8_t)i2cdevWrite(I2C1_DEV, addr, len+1,  tempBuffer);
 
     //flip because 2 libraries are interfeering
     if(result){

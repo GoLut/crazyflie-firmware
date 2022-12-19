@@ -234,7 +234,7 @@ void gpioMonitorTask(void* arg){
 
     while(1) {
         //TODO when done testing remove this delay
-        vTaskDelayUntil(&xLastWakeTime, M2T(1000));
+        vTaskDelayUntil(&xLastWakeTime, M2T(10));
         // DEBUG_PRINT("detecting GPIO LEVELS\n");
         // //TODO Remove when done debugging, also check if the set conditions don't cause any issues.
         // uint8_t tcs34725_0_int_value = (uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN);
@@ -267,7 +267,7 @@ void colorDeckTask(void* arg){
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
-        vTaskDelayUntil(&xLastWakeTime, M2T(1000));
+        vTaskDelayUntil(&xLastWakeTime, M2T(100));
         //we read the data if the interrupt pins of the color sensors have been detected low.
         readAndProcessColorSensorsIfDataAvaiable();
         //When both sensors have new data available we process the delta
