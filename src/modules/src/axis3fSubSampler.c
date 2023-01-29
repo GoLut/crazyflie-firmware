@@ -7,7 +7,7 @@
  *
  * Crazyflie control firmware
  *
- * Copyright (C) 2022 Bitcraze AB
+ * Copyright (C) 2023 Bitcraze AB
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,50 +21,34 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * hello_world.c - App layer application of a simple hello world debug print every
- *   2 seconds.
  */
 
-
 #include <string.h>
-#include <stdint.h>
-#include <stdbool.h>
+#include "axis3fSubSampler.h"
 
-#include <cassert>
-#include <string>
-
-extern "C"
-{
-  #include "app.h"
-
-  #include "FreeRTOS.h"
-  #include "task.h"
-
-  #include "debug.h"
+void axis3fSubSamplerInit(Axis3fSubSampler_t* this, const float conversionFactor) {
+  memset(this, 0, sizeof(Axis3fSubSampler_t));
+  this->conversionFactor = conversionFactor;
 }
 
-#define DEBUG_MODULE "HELLOWORLD"
+void axis3fSubSamplerAccumulate(Axis3fSubSampler_t* this, const Axis3f* sample) {
+  this->sum.x += sample->x;
+  this->sum.y += sample->y;
+  this->sum.z += sample->z;
 
-class MyClass {
-  public:
-    int myNum;
-    std::string myString;
-};
+  this->count++;
+}
 
-void appMain()
-{
-  DEBUG_PRINT("Waiting for activation ...\n");
+Axis3f* axis3fSubSamplerFinalize(Axis3fSubSampler_t* this) {
+  if (this->count > 0) {
+    this->subSample.x = this->sum.x * this->conversionFactor / this->count;
+    this->subSample.y = this->sum.y * this->conversionFactor / this->count;
+    this->subSample.z = this->sum.z * this->conversionFactor / this->count;
 
-  MyClass *cl = new MyClass();
-  DEBUG_PRINT("MyClass has a num: %d\n", cl->myNum);
-
-  /* make sure that the assertion is not simple enough to be optimized away
-   * by the compiler */
-  assert(cl->myNum + cl->myString.size() == 0);
-
-  while(1) {
-    vTaskDelay(M2T(2000));
-    DEBUG_PRINT("Hello World!\n");
+    // Reset
+    this->count = 0;
+    this->sum = (Axis3f){.axis={0}};
   }
+
+  return &this->subSample;
 }

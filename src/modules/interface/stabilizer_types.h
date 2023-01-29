@@ -65,8 +65,6 @@ typedef struct vec3_s acc_t;
 
 /* Orientation as a quaternion */
 typedef struct quaternion_s {
-  uint32_t timestamp;
-
   union {
     struct {
       float q0;
@@ -89,8 +87,21 @@ typedef enum {
 } measurementSource_t;
 
 typedef struct tdoaMeasurement_s {
-  point_t anchorPositions[2];
-  uint8_t anchorIds[2];
+  union {
+    point_t anchorPositions[2];
+    struct {
+      point_t anchorPositionA;
+      point_t anchorPositionB;
+    };
+  };
+  union {
+    uint8_t anchorIds[2];
+    struct {
+      uint8_t anchorIdA;
+      uint8_t anchorIdB;
+    };
+  };
+
   float distanceDiff;
   float stdDev;
 } tdoaMeasurement_t;

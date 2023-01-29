@@ -1,3 +1,4 @@
+#include "stm32fxxx.h"
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "static_mem.h"
@@ -9,6 +10,7 @@
 #include "estimator.h"
 #include "estimator_complementary.h"
 #include "estimator_kalman.h"
+#include "estimator_ukf.h"
 #include "log.h"
 #include "statsCnt.h"
 #include "eventtrigger.h"
@@ -78,6 +80,15 @@ static EstimatorFcns estimatorFunctions[] = {
         .name = "Kalman",
     },
 #endif
+#ifdef CONFIG_ESTIMATOR_UKF_ENABLE
+    {
+	    .init = errorEstimatorUkfInit,
+	    .deinit = NOT_IMPLEMENTED,
+	    .test = errorEstimatorUkfTest,
+	    .update = errorEstimatorUkf,
+	    .name = "Error State UKF",
+	},
+#endif
 #ifdef CONFIG_ESTIMATOR_OOT
     {
         .init = estimatorOutOfTreeInit,
@@ -107,6 +118,8 @@ void stateEstimatorSwitchTo(StateEstimatorType estimator) {
 
   #if defined(CONFIG_ESTIMATOR_KALMAN)
     #define ESTIMATOR kalmanEstimator
+  #elif defined(CONFIG_UKF_KALMAN)
+    #define ESTIMATOR ukfEstimator
   #elif defined(CONFIG_ESTIMATOR_COMPLEMENTARY)
     #define ESTIMATOR complementaryEstimator
   #else

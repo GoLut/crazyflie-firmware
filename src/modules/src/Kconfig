@@ -49,6 +49,12 @@ config ESTIMATOR_KALMAN_ENABLE
     help
         Enable the Kalman (EKF) estimator.
 
+config ESTIMATOR_UKF_ENABLE
+    bool "Enable error-state UKF estimator"
+    default n
+    help
+        Enable the (error-state unscented) Kalman filter (UKF) estimator
+
 choice
     prompt "Default estimator"
     default CONFIG_ESTIMATOR_ANY
@@ -63,6 +69,12 @@ config ESTIMATOR_KALMAN
     depends on ESTIMATOR_KALMAN_ENABLE
     help
         Use the (extended) Kalman filter (EKF) estimator as default
+
+config ESTIMATOR_UKF
+    bool "Error-state UKF estimator"
+    depends on ESTIMATOR_UKF_ENABLE
+    help
+        Use the (error-state unscented) Kalman filter (UKF) estimator as default
 
 config ESTIMATOR_COMPLEMENTARY
     bool "Complementary estimator"
@@ -141,6 +153,18 @@ config MOTORS_DEFAULT_PROP_TEST_PWM_RATIO
         drone uses full thrust for brushed motors and does not spin up brushless
         motors (for safety reasons). It is therefore advised to set this parameter
         explicitly for brushless builds to enable the motor test functionality.
+
+        The value specified here can also be overridden with parameters.
+
+config MOTORS_DEFAULT_BAT_TEST_PWM_RATIO
+    int "Override default PWM ratio to use during battery tests"
+    range 0 65535
+    default 0
+    help
+        PWM ratio to use during battery test, expressed as an integer in the range
+        0 to 65535. Zero means not to override the PWM ratio because there a differences
+        between brushed and brushless;. Brushless is 0 for safety reasons. Different motors
+        needs different value, hance this config variable.
 
         The value specified here can also be overridden with parameters.
 
