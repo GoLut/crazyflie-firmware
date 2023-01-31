@@ -57,3 +57,9 @@ obj-y += TCS34725_driver/src/driver_tcs34725_interrupt.o
 
 #the color struct and conversion calculations
 obj-y += TCS34725_driver/src/color.o
+
+#classification KNN
+obj-y += KNN_lib/src/KNN.o
+
+#circular buffer 
+obj-y += Circular_Buffer_lib/src/circular_buffer.o

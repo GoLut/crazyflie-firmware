@@ -12,10 +12,17 @@
 #include "system.h"
 #include "param.h"
 
-//TCA9548a sensor drivers
+//TCA9548a sensor header file
 #include "driver_tca9548a_basic.h"
+//TCS34725 sensor header files
 #include "driver_tcs34725_interrupt.h"
 #include "color.h"
+
+//color classification
+#include "KNN.h"
+
+// //Circular Buffer
+#include "circular_buffer.h"
 
 // RTOS new TASKS
 #define COLORDECK_TASK_STACKSIZE  (7*configMINIMAL_STACK_SIZE) 
@@ -26,6 +33,7 @@
 #define GPIOMONITOR_TASK_NAME "GPIOMonitor"
 #define GPIOMONITOR_TASK_PRI 4
 
+//TCSColor sensor defines
 #define TCS34725_SENS0_TCA9548A_CHANNEL TCA9548A_CHANNEL7
 #define TCS34725_SENS1_TCA9548A_CHANNEL TCA9548A_CHANNEL6
 
@@ -36,19 +44,36 @@ void gpioMonitorTask(void* arg);
 
 //TCA9548a settings
 static tca9548a_handle_t tca9548a_handle;    /**< tca9548a handle */
+uint8_t TCA_result = 0;
 
 //TCS34725 Settings and parameters for both sensors
 volatile bool isr_flag_sens0 = false;
 volatile bool isr_flag_sens1 = false;
 volatile bool new_data_flag0 = false;
 volatile bool new_data_flag1 = false;
-uint8_t result = 0;
+uint8_t TCS_result = 0;
 static tcs34725_handle_t tcs34725_handle_sens0, tcs34725_handle_sens1;    /**< tcs34725 handle */
 
 //Color data collected by the tcs sensors:
 tcs34725_Color_data tcs34725_data_struct0, tcs34725_data_struct1; //the data buffers of the tcs34725 sensors
 
+//circular buffer to save the History of detected colors:
+#define HISTORIC_COLOR_BUFFER_SIZE 6
+uint8_t buffer_h[HISTORIC_COLOR_BUFFER_SIZE]  = {0};
+circular_buf_t cbufCH;
+cbuf_handle_t cbuf_color_history;
 
+//Circular buffer to save the recently detected colors:
+#define RECENT_COLOR_BUFFER_SIZE 7
+uint8_t buffer_r[RECENT_COLOR_BUFFER_SIZE]  = {0};
+circular_buf_t cbufCR;
+cbuf_handle_t cbuf_color_recent;
+
+/**
+ * Read the information recieved from the TCS color sensors and saves this in the sensor struct. 
+ * It selects the correct TCA mux channel
+ * Reads the data over the I2C line
+*/
 void read_raw_data_to_struct(tcs34725_Color_data *data_struct, tcs34725_handle_t *device_handle){
     //switch the i2c mux to the right channel
     if (data_struct->ID ==0){
@@ -57,20 +82,19 @@ void read_raw_data_to_struct(tcs34725_Color_data *data_struct, tcs34725_handle_t
         tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
     }
     //read the data over i2c
-    result = tcs34725_interrupt_read((uint16_t *)&data_struct->rgb_raw_data.r,
+    TCS_result = tcs34725_interrupt_read((uint16_t *)&data_struct->rgb_raw_data.r,
                                      (uint16_t *)&data_struct->rgb_raw_data.g,
                                      (uint16_t *)&data_struct->rgb_raw_data.b,
                                      (uint16_t *)&data_struct->rgb_raw_data.c,
                                      device_handle);
 
-    if (result != 0){DEBUG_PRINT("WARNING: no data received\n");}
+    if (TCS_result != 0){DEBUG_PRINT("WARNING: no data received\n");}
 }
-
 
 
 /**
  * This function resets the TCS34725 sensor by
- * Reading the data and discarding the result (causes some internal sensor trigger to reset and pull the interrupt line high)
+ * Reading the data and discarding the TCS_result (causes some internal sensor trigger to reset and pull the interrupt line high)
  * Sending a reset command. A semi working i2c reset command.
  * @param data_struct Color data struct of the sensor in question
  * @param tcs_device_handle The TCS34725 sensor handle
@@ -78,7 +102,7 @@ void read_raw_data_to_struct(tcs34725_Color_data *data_struct, tcs34725_handle_t
  */
 
 void reset_tcs34725_sensor(tcs34725_Color_data *data_struct, tcs34725_handle_t *tcs_device_handle, tca9548a_handle_t * tca_device_handle){
-    //reading some initial values. if nothing is available yet we ignore the result
+    //reading some initial values. if nothing is available yet we ignore the TCS_result
     read_raw_data_to_struct(data_struct, tcs_device_handle);
     //disable the interrupt flag'
     // vTaskSuspendAll(); //suspends the scheduler
@@ -132,15 +156,15 @@ static void colorDeckInit()
 
     //init the hardware:
     //TCA9548
-    result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
-    if (result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
+    TCA_result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
+    if (TCA_result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
     else{DEBUG_PRINT("Init of tca9548a successful\n");}
 
     //select the correct channel for the i2c mux for initialization
     vTaskDelay(1);
     tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
-    result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
-    if (result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
+    TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
+    if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
     else{DEBUG_PRINT("Init of tcs34725 sens 0 successful\n");}
     
     // switching i2c channel
@@ -148,9 +172,20 @@ static void colorDeckInit()
     tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
     
     //init second color sensor
-    result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
-    if (result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
+    TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
+    if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
     else{DEBUG_PRINT("Init of tcs34725 sens 1 successful\n");}
+
+    //init the circular buffer
+    cbuf_color_history = circular_buf_init(buffer_h, HISTORIC_COLOR_BUFFER_SIZE, cbuf_color_history);
+    cbuf_color_recent = circular_buf_init(buffer_r, RECENT_COLOR_BUFFER_SIZE, cbuf_color_recent);
+
+    // DEBUG_PRINT("value %u", cbuf_color_history->full);
+    // DEBUG_PRINT("value %u", cbuf_color_recent->full);
+
+
+    // (void)me; //temp shuts up the compiler
+
 
     // we are done init
     isInit = true;
@@ -210,13 +245,10 @@ void readAndProcessColorSensorsIfDataAvaiable() {
  * It saves the result in both structs. and sets the "new_data_flag0" back to false.
  */
 void processDeltaColorSensorData() {
-    if ((new_data_flag0 == true) && (new_data_flag1 == true)) {
-        //we have new data on both sensor now we process the data
-        processDeltaData(&tcs34725_data_struct0, &tcs34725_data_struct1);
-        new_data_flag0 = false;
-        new_data_flag1 = false;
-        DEBUG_PRINT("Processed delta DATA");
-    }
+    //we have new data on both sensor now we process the data
+    processDeltaData(&tcs34725_data_struct0, &tcs34725_data_struct1);
+    // DEBUG_PRINT("Processed delta DATA");
+
 }
 /**
  * Listener to the GPIO pins
@@ -243,14 +275,70 @@ void gpioMonitorTask(void* arg){
 
         if (!isr_flag_sens0 && !((uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN))){
             isr_sens0();
-            DEBUG_PRINT("Sens0: int pin low detected.\n");
+            // DEBUG_PRINT("Sens0: int pin low detected.\n");
         }
         if (!isr_flag_sens1 && !((uint8_t) digitalRead(TCS34725_1_INT_GPIO_PIN))){
             isr_sens1();
-            DEBUG_PRINT("Sens1: int pin low detected.\n");
+            // DEBUG_PRINT("Sens1: int pin low detected.\n");
         }
     }
 }
+
+/**
+ * checks if all elements in a circular buffer are equal. 
+ * Returns a 1 if all elements are equal
+ * 0 if not all elements are equal
+ * -1 if an error occured during one of the Circular buffer opperations.
+*/
+int8_t AverageCollorClassification(uint8_t * colorDetected, cbuf_handle_t cbuf){
+    //put the classified color in the buffer at the newest spot
+    //This overwrites the oldest element in the array.
+    int action_result = 0;
+    DEBUG_PRINT("Action result: %d --- ", action_result);
+    DEBUG_PRINT("sizeafterPUT0: %d \n", circular_buf_size(cbuf));
+    action_result = circular_buf_try_put(cbuf, *colorDetected);
+    DEBUG_PRINT("Action result: %d --- ", action_result);
+    DEBUG_PRINT("sizeafterPUT1: %d \n", circular_buf_size(cbuf));
+    circular_buf_try_put(cbuf, *colorDetected);
+    DEBUG_PRINT("Action result: %d --- ", action_result);
+    DEBUG_PRINT("sizeafterPUT2: %d \n", circular_buf_size(cbuf));
+    circular_buf_try_put(cbuf, *colorDetected);
+    DEBUG_PRINT("Action result: %d --- ", action_result);
+    DEBUG_PRINT("sizeafterPUT3: %d \n", circular_buf_size(cbuf));
+
+    //temp to keep the circular buffer result
+    // uint8_t compareToThisColor;
+    // uint8_t temp_compare;
+
+    // for (uint8_t i = 0; i < RECENT_COLOR_BUFFER_SIZE; i++)
+    // {
+    //     //first element nothing to compare to so we simply save the data
+    //    if (i == 0){
+    //         action_result = circular_buf_peek(cbuf, &compareToThisColor, 0);
+    //    }
+    //    else{
+    //     //compare the elements if one is not equal we return 0
+    //         action_result = circular_buf_peek(cbuf, &temp_compare, i);
+    //         if (compareToThisColor != temp_compare){
+    //             //return valid if no errors occured
+    //             if (action_result == 0){
+    //                 return 0;
+    //             }
+    //             else { 
+    //                 return -1;
+    //             }
+    //         }
+    //     }
+    // }
+    //return valid if no errors occured
+    if (action_result == 0){
+        return 1;
+    }
+    else { 
+        return -1;
+    }
+}
+
 
 //Main color deck task
 void colorDeckTask(void* arg){
@@ -270,8 +358,30 @@ void colorDeckTask(void* arg){
         vTaskDelayUntil(&xLastWakeTime, M2T(100));
         //we read the data if the interrupt pins of the color sensors have been detected low.
         readAndProcessColorSensorsIfDataAvaiable();
-        //When both sensors have new data available we process the delta
-        processDeltaColorSensorData();
+
+        if ((new_data_flag0 == true) && (new_data_flag1 == true)) {
+
+            //When both sensors have new data available we process the delta
+            processDeltaColorSensorData();
+            
+            //classify sensor data
+            KNNPoint testPoint = {.hue_polar= tcs34725_data_struct0.hsv_delta_data.h, .sat_polar = tcs34725_data_struct0.hsv_delta_data.s, .x_cart = 0, .y_cart = 0, .ID = -1};
+            uint8_t classificationID;
+            int8_t tempResult = predictLabelOfPoint(&testPoint, trainingPoints, &classificationID,  3);
+            // if data is valid continue (0 or larger, -1 is invalid)
+            if (tempResult > 0){
+            // Average of some sorts. we are in a new color if we have received N of the same classifications
+                DEBUG_PRINT("We are recieving color ID: %d \n", classificationID);
+                if (AverageCollorClassification(&classificationID, cbuf_color_recent) == 1){
+                    // if above condition is true we add the data to the recently visited cells to be used by the particle filter.
+                    DEBUG_PRINT("AVERAGEFOUND: %d \n", classificationID);
+                    circular_buf_put(cbuf_color_history, classificationID);
+                }
+            }
+            //set flags to 0 ready for the new measurement
+            new_data_flag0 = false;
+            new_data_flag1 = false;
+        }
     }
 }
 
