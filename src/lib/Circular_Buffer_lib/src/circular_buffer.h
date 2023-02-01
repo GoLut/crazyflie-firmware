@@ -1,18 +1,22 @@
 #ifndef CIRCULAR_BUFFER_H_
 #define CIRCULAR_BUFFER_H_
 
+#include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
-// The definition of our circular buffer structure show to the user but thats okay for now
-typedef struct circular_buf_t{
+
+/// Opaque circular buffer structure
+// The definition of our circular buffer structure is visible to the user
+typedef struct circular_buf_t
+{
 	uint8_t* buffer;
-	uint8_t head;
-	uint8_t tail;
-	uint8_t max; // of the buffer
+	size_t head;
+	size_t tail;
+	size_t max; // of the buffer
 	bool full;
 }circular_buf_t;
-
 
 /// Handle type, the way users interact with the API
 typedef circular_buf_t* cbuf_handle_t;
@@ -21,7 +25,7 @@ typedef circular_buf_t* cbuf_handle_t;
 /// Requires: buffer is not NULL, size > 0 (size > 1 for the threadsafe
 //  version, because it holds size - 1 elements)
 /// Ensures: me has been created and is returned in an empty state
-cbuf_handle_t circular_buf_init(uint8_t* buffer, uint8_t size, cbuf_handle_t cbuf);
+cbuf_handle_t circular_buf_init(uint8_t* buffer, size_t size, cbuf_handle_t cbuf);
 
 /// Free a circular buffer structure
 /// Requires: me is valid and created by circular_buf_init
@@ -63,19 +67,19 @@ bool circular_buf_full(cbuf_handle_t me);
 /// Check the capacity of the buffer
 /// Requires: me is valid and created by circular_buf_init
 /// Returns the maximum capacity of the buffer
-uint8_t circular_buf_capacity(cbuf_handle_t me);
+size_t circular_buf_capacity(cbuf_handle_t me);
 
 /// Check the number of elements stored in the buffer
 /// Requires: me is valid and created by circular_buf_init
 /// Returns the current number of elements in the buffer
-uint8_t circular_buf_size(cbuf_handle_t me);
+size_t circular_buf_size(cbuf_handle_t me);
 
 /// Look ahead at values stored in the circular buffer without removing the data
 /// Requires:
 ///		- me is valid and created by circular_buf_init
 ///		- look_ahead_counter is less than or equal to the value returned by circular_buf_size()
 /// Returns 0 if successful, -1 if data is not available
-int circular_buf_peek(cbuf_handle_t me, uint8_t* data, uint8_t look_ahead_counter);
+int circular_buf_peek(cbuf_handle_t me, uint8_t* data, unsigned int look_ahead_counter);
 
 // TODO: int circular_buf_get_range(circular_buf_t me, uint8_t *data, size_t len);
 // TODO: int circular_buf_put_range(circular_buf_t me, uint8_t * data, size_t len);

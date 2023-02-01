@@ -3,20 +3,12 @@
 #include <stddef.h>
 // #include <assert.h>
 
-#include "debug.h"
-
-
 #include "circular_buffer.h"
 
-////DISCLAIMER:
-// This code is written by: https://embeddedartistry.com/blog/2017/05/17/creating-a-circular-buffer-in-c-and-c/
-// Embedde artistry -- phillipjohnston @Github
-// released under: Creative Commons Zero v1.0 Universal
- 
 
 // #pragma mark - Private Functions -
 
-static inline uint8_t advance_headtail_value(uint8_t value, uint8_t max)
+static inline size_t advance_headtail_value(size_t value, size_t max)
 {
 	return (value + 1) % max;
 }
@@ -36,7 +28,7 @@ static void advance_head_pointer(cbuf_handle_t me)
 
 // #pragma mark - APIs -
 
-cbuf_handle_t circular_buf_init(uint8_t* buffer, uint8_t size, cbuf_handle_t cbuf)
+cbuf_handle_t circular_buf_init(uint8_t* buffer, size_t size, cbuf_handle_t cbuf)
 {
 	// assert(buffer && size);
 
@@ -68,11 +60,11 @@ void circular_buf_reset(cbuf_handle_t me)
 	me->full = false;
 }
 
-uint8_t circular_buf_size(cbuf_handle_t me)
+size_t circular_buf_size(cbuf_handle_t me)
 {
 	// assert(me);
 
-	uint8_t size = me->max;
+	size_t size = me->max;
 
 	if(!circular_buf_full(me))
 	{
@@ -89,7 +81,7 @@ uint8_t circular_buf_size(cbuf_handle_t me)
 	return size;
 }
 
-uint8_t circular_buf_capacity(cbuf_handle_t me)
+size_t circular_buf_capacity(cbuf_handle_t me)
 {
 	// assert(me);
 
@@ -152,28 +144,29 @@ bool circular_buf_full(cbuf_handle_t me)
 	return me->full;
 }
 
-int circular_buf_peek(cbuf_handle_t me, uint8_t* data, uint8_t look_ahead_counter)
+int circular_buf_peek(cbuf_handle_t me, uint8_t* data, unsigned int look_ahead_counter)
 {
 	int r = -1;
-	uint8_t pos;
+	size_t pos;
 
 	// assert(me && data && me->buffer);
 
 	// We can't look beyond the current buffer size
 	if(circular_buf_empty(me) || look_ahead_counter > circular_buf_size(me))
 	{
-		DEBUG_PRINT("empty %d ----- ",circular_buf_empty(me));
-		DEBUG_PRINT("LookAheadCounter: %d ---  ", look_ahead_counter);
-		DEBUG_PRINT("larger than size %d \n", look_ahead_counter > circular_buf_size(me));
 		return r;
 	}
 
 	pos = me->tail;
-	for(uint8_t i = 0; i < look_ahead_counter; i++)
+	//advance the position N times.
+	for(unsigned int i = 0; i < look_ahead_counter; i++)
 	{
-		data[i] = me->buffer[pos];
 		pos = advance_headtail_value(pos, me->max);
 	}
+	
+	//Write the data by reference
+	*data = me->buffer[pos];
+
 
 	return 0;
 }
