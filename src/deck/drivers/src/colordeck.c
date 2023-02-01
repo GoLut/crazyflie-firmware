@@ -61,13 +61,13 @@ tcs34725_Color_data tcs34725_data_struct0, tcs34725_data_struct1; //the data buf
 #define HISTORIC_COLOR_BUFFER_SIZE 6
 uint8_t buffer_h[HISTORIC_COLOR_BUFFER_SIZE]  = {0};
 circular_buf_t cbufCH;
-cbuf_handle_t cbuf_color_history;
+cbuf_handle_t cbuf_color_history = &cbufCH;
 
 //Circular buffer to save the recently detected colors:
-#define RECENT_COLOR_BUFFER_SIZE 7
+#define RECENT_COLOR_BUFFER_SIZE 3
 uint8_t buffer_r[RECENT_COLOR_BUFFER_SIZE]  = {0};
 circular_buf_t cbufCR;
-cbuf_handle_t cbuf_color_recent;
+cbuf_handle_t cbuf_color_recent = &cbufCR;
 
 /**
  * Read the information recieved from the TCS color sensors and saves this in the sensor struct. 
@@ -89,6 +89,8 @@ void read_raw_data_to_struct(tcs34725_Color_data *data_struct, tcs34725_handle_t
                                      device_handle);
 
     if (TCS_result != 0){DEBUG_PRINT("WARNING: no data received\n");}
+
+
 }
 
 
@@ -183,9 +185,7 @@ static void colorDeckInit()
     // DEBUG_PRINT("value %u", cbuf_color_history->full);
     // DEBUG_PRINT("value %u", cbuf_color_recent->full);
 
-
     // (void)me; //temp shuts up the compiler
-
 
     // we are done init
     isInit = true;
@@ -240,6 +240,7 @@ void readAndProcessColorSensorsIfDataAvaiable() {
     }
 }
 
+
 /**
  * This function takes 2 color data structs and processes the delta RGB and HSV data.
  * It saves the result in both structs. and sets the "new_data_flag0" back to false.
@@ -249,6 +250,7 @@ void processDeltaColorSensorData() {
     processDeltaData(&tcs34725_data_struct0, &tcs34725_data_struct1);
     // DEBUG_PRINT("Processed delta DATA");
 
+    // printTheData(&tcs34725_data_struct0, &tcs34725_data_struct1);
 }
 /**
  * Listener to the GPIO pins
@@ -261,7 +263,7 @@ void gpioMonitorTask(void* arg){
     // the last time the function was called
     TickType_t xLastWakeTime = xTaskGetTickCount();
     //startup delay
-    const TickType_t xDelay = 100; // portTICK_PERIOD_MS;
+    const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
 
     while(1) {
@@ -292,44 +294,37 @@ void gpioMonitorTask(void* arg){
 */
 int8_t AverageCollorClassification(uint8_t * colorDetected, cbuf_handle_t cbuf){
     //put the classified color in the buffer at the newest spot
-    //This overwrites the oldest element in the array.
     int action_result = 0;
-    DEBUG_PRINT("Action result: %d --- ", action_result);
-    DEBUG_PRINT("sizeafterPUT0: %d \n", circular_buf_size(cbuf));
-    action_result = circular_buf_try_put(cbuf, *colorDetected);
-    DEBUG_PRINT("Action result: %d --- ", action_result);
-    DEBUG_PRINT("sizeafterPUT1: %d \n", circular_buf_size(cbuf));
-    circular_buf_try_put(cbuf, *colorDetected);
-    DEBUG_PRINT("Action result: %d --- ", action_result);
-    DEBUG_PRINT("sizeafterPUT2: %d \n", circular_buf_size(cbuf));
-    circular_buf_try_put(cbuf, *colorDetected);
-    DEBUG_PRINT("Action result: %d --- ", action_result);
-    DEBUG_PRINT("sizeafterPUT3: %d \n", circular_buf_size(cbuf));
+    //This overwrites the oldest element in the array.
+    circular_buf_put(cbuf, *colorDetected);
 
-    //temp to keep the circular buffer result
-    // uint8_t compareToThisColor;
-    // uint8_t temp_compare;
+    // temp to keep the circular buffer result
+    uint8_t compareToThisColor;
+    uint8_t temp_compare;
 
-    // for (uint8_t i = 0; i < RECENT_COLOR_BUFFER_SIZE; i++)
-    // {
-    //     //first element nothing to compare to so we simply save the data
-    //    if (i == 0){
-    //         action_result = circular_buf_peek(cbuf, &compareToThisColor, 0);
-    //    }
-    //    else{
-    //     //compare the elements if one is not equal we return 0
-    //         action_result = circular_buf_peek(cbuf, &temp_compare, i);
-    //         if (compareToThisColor != temp_compare){
-    //             //return valid if no errors occured
-    //             if (action_result == 0){
-    //                 return 0;
-    //             }
-    //             else { 
-    //                 return -1;
-    //             }
-    //         }
-    //     }
-    // }
+    for (uint8_t i = 0; i < RECENT_COLOR_BUFFER_SIZE; i++)
+    {
+    //first element nothing to compare to so we simply save the data
+       if (i == 0){
+            action_result = circular_buf_peek(cbuf, &compareToThisColor, 0);
+            // DEBUG_PRINT("Action result first Round: %d --- ", action_result);
+       }
+       else{
+        //compare the elements if one is not equal we return 0
+            action_result = circular_buf_peek(cbuf, &temp_compare, i);
+            // DEBUG_PRINT("Action result %d Round: %d --- ", i , action_result);
+            if (compareToThisColor != temp_compare){
+                //return valid if no errors occured and unequal elements are found in the buffer.
+                if (action_result == 0){
+                    return 0;
+                }
+                else { 
+                    return -1;
+                }
+            }
+        }
+    }
+    // DEBUG_PRINT("\n");
     //return valid if no errors occured
     if (action_result == 0){
         return 1;
@@ -372,10 +367,17 @@ void colorDeckTask(void* arg){
             if (tempResult > 0){
             // Average of some sorts. we are in a new color if we have received N of the same classifications
                 DEBUG_PRINT("We are recieving color ID: %d \n", classificationID);
+                // DEBUG_PRINT("AverageClassificationResult: %d", AverageCollorClassification(&classificationID, cbuf_color_recent));
                 if (AverageCollorClassification(&classificationID, cbuf_color_recent) == 1){
-                    // if above condition is true we add the data to the recently visited cells to be used by the particle filter.
+                    //If above condition is true we check if the new color is different than the previously stored color
+                    //We can do this because the pattern guarentees a unique color is next. 
                     DEBUG_PRINT("AVERAGEFOUND: %d \n", classificationID);
-                    circular_buf_put(cbuf_color_history, classificationID);
+                    uint8_t previous_classified_color;
+                    circular_buf_peek(cbuf_color_history, &previous_classified_color, 0);
+
+                    if (previous_classified_color != classificationID){
+                        circular_buf_put(cbuf_color_history, classificationID);
+                    }
                 }
             }
             //set flags to 0 ready for the new measurement
@@ -384,7 +386,6 @@ void colorDeckTask(void* arg){
         }
     }
 }
-
 
 static bool colorDeckTest()
 {
@@ -404,9 +405,31 @@ static const DeckDriver ColorDriver = {
 };
 
 DECK_DRIVER(ColorDriver);
-
 LOG_GROUP_START(COLORDECKDATA)
+                //the raw RGB values of the sensors
+                LOG_ADD_CORE(LOG_UINT16, r0, &tcs34725_data_struct0.rgb_raw_data.r)
+                LOG_ADD_CORE(LOG_UINT16, g0, &tcs34725_data_struct0.rgb_raw_data.g)
+                LOG_ADD_CORE(LOG_UINT16, b0, &tcs34725_data_struct0.rgb_raw_data.b)
+                LOG_ADD_CORE(LOG_UINT16, c0, &tcs34725_data_struct0.rgb_raw_data.c)
+                LOG_ADD_CORE(LOG_UINT16, r1, &tcs34725_data_struct1.rgb_raw_data.r)
+                LOG_ADD_CORE(LOG_UINT16, g1, &tcs34725_data_struct1.rgb_raw_data.g)
+                LOG_ADD_CORE(LOG_UINT16, b1, &tcs34725_data_struct1.rgb_raw_data.b)
+                LOG_ADD_CORE(LOG_UINT16, c1, &tcs34725_data_struct1.rgb_raw_data.c)
+
+                //hsv data to verify if the c calculations match the pc side calculations
+                LOG_ADD_CORE(LOG_FLOAT, h0, &tcs34725_data_struct0.hsv_data.h)
+                LOG_ADD_CORE(LOG_FLOAT, s0, &tcs34725_data_struct0.hsv_data.s)
+                LOG_ADD_CORE(LOG_FLOAT, v0, &tcs34725_data_struct0.hsv_data.v)
+                LOG_ADD_CORE(LOG_FLOAT, h1, &tcs34725_data_struct1.hsv_data.h)
+                LOG_ADD_CORE(LOG_FLOAT, s1, &tcs34725_data_struct1.hsv_data.s)
+                LOG_ADD_CORE(LOG_FLOAT, v1, &tcs34725_data_struct1.hsv_data.v)
+
+                //THE delta values
                 LOG_ADD_CORE(LOG_FLOAT, hue_delta, &tcs34725_data_struct0.hsv_delta_data.h)
                 LOG_ADD_CORE(LOG_FLOAT, sat_delta, &tcs34725_data_struct0.hsv_delta_data.s)
                 LOG_ADD_CORE(LOG_FLOAT, val_delta, &tcs34725_data_struct0.hsv_delta_data.v)
+                //time stamps in NOTE THESE MIGHT BE SHIFTED A BIT BUT CLOSE ENAUGH FOR PLOTTING
+                LOG_ADD_CORE(LOG_UINT32, time0, &tcs34725_data_struct0.time)
+                LOG_ADD_CORE(LOG_UINT32, time1, &tcs34725_data_struct0.time)
+
 LOG_GROUP_STOP(COLORDECKDATA)
