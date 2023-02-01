@@ -4,7 +4,7 @@
 hsv rgb2hsv(rgb in)
 {
     hsv         out;
-    double      min, max, delta;
+    float      min, max, delta;
 
     min = in.r < in.g ? in.r : in.g;
     min = min  < in.b ? min  : in.b;
@@ -14,7 +14,9 @@ hsv rgb2hsv(rgb in)
 
     out.v = max;                                // v
     delta = max - min;
-    if (delta < 0.00001)
+
+    float minLim = 0.00001;
+    if (delta < minLim)
     {
         out.s = 0;
         out.h = 0; // undefined, maybe nan?
@@ -49,8 +51,8 @@ hsv rgb2hsv(rgb in)
 hsv rgb_delta2hsv_delta(rgb_delta in){
     //from: https://stackoverflow.com/questions/3018313/algorithm-to-convert-rgb-to-hsv-and-hsv-to-rgb-in-range-0-255-for-both
     hsv         out;
-    double      min, max, abs_max, delta;
-    double      abs_r, abs_g, abs_b;
+    float      min, max, abs_max, delta;
+    float      abs_r, abs_g, abs_b;
     
     abs_r = fabs(in.r);
     abs_g = fabs(in.g);
@@ -102,7 +104,7 @@ hsv rgb_delta2hsv_delta(rgb_delta in){
 
 rgb hsv2rgb(hsv in)
 {
-    double      hh, p, q, t, ff;
+    float       hh, p, q, t, ff;
     long        i;
     rgb         out;
 
@@ -169,12 +171,12 @@ void calc_rgb_delta(tcs34725_Color_data * d1, tcs34725_Color_data * d2){
     d2->rgb_delta_data = d1->rgb_delta_data;
 }
 
-double uint16ToNormalizedFloat(uint16_t in){
-  double out = (double)in/65535;
+float uint16ToNormalizedFloat(uint16_t in){
+  float out = (float)in/65535;
   return out;
 }
 
-void convertRgbIntToNormDouble(tcs34725_Color_data * data_struct){
+void convertRgbIntToNormFloat(tcs34725_Color_data * data_struct){
     data_struct->rgb_data.r = uint16ToNormalizedFloat(data_struct->rgb_raw_data.r);
     data_struct->rgb_data.g = uint16ToNormalizedFloat(data_struct->rgb_raw_data.g);
     data_struct->rgb_data.b = uint16ToNormalizedFloat(data_struct->rgb_raw_data.b);
@@ -182,7 +184,7 @@ void convertRgbIntToNormDouble(tcs34725_Color_data * data_struct){
 }
 
 void processRawData(tcs34725_Color_data * data_struct){
-    convertRgbIntToNormDouble(data_struct);
+    convertRgbIntToNormFloat(data_struct);
     data_struct->hsv_data = rgb2hsv(data_struct->rgb_data);
 }
 

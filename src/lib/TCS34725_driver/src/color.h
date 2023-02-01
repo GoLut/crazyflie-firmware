@@ -11,24 +11,24 @@ extern "C"{
 #endif
 
 typedef struct rgbs {
-    double r;       // a fraction between 0 and 1
-    double g;       // a fraction between 0 and 1
-    double b;       // a fraction between 0 and 1
-    double c;       // a fraction between 0 and 1
+    float r;       // a fraction between 0 and 1
+    float g;       // a fraction between 0 and 1
+    float b;       // a fraction between 0 and 1
+    float c;       // a fraction between 0 and 1
 
 } rgb;
 
 typedef struct rgb_deltas {
-    double r;       // a fraction between 0 and 1
-    double g;       // a fraction between 0 and 1
-    double b;       // a fraction between 0 and 1
+    float r;       // a fraction between 0 and 1
+    float g;       // a fraction between 0 and 1
+    float b;       // a fraction between 0 and 1
 
 } rgb_delta;
 
 typedef struct hsvs {
-    double h;       // angle in degrees 0-360
-    double s;       // a fraction between 0 and 1
-    double v;       // a fraction between 0 and 1
+    float h;       // angle in degrees 0-360
+    float s;       // a fraction between 0 and 1
+    float v;       // a fraction between 0 and 1
 } hsv;
 
 typedef struct rgb_raw
@@ -87,7 +87,7 @@ rgb hsv2rgb(hsv in);
  * @param in  input integer
  * @return double normalized between 0 and 1.
  */
-double uint16ToNormalizedFloat(uint16_t in);
+float uint16ToNormalizedFloat(uint16_t in);
 
 
 /**
@@ -95,7 +95,7 @@ double uint16ToNormalizedFloat(uint16_t in);
  * 
  * @param data_struct 
  */
-void convertRgbIntToNormDouble(tcs34725_Color_data * data_struct);
+void convertRgbIntToNormFloat(tcs34725_Color_data * data_struct);
 
 
 /**
