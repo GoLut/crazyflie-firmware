@@ -22,12 +22,12 @@ hsv rgb2hsv(rgb in)
         out.h = 0; // undefined, maybe nan?
         return out;
     }
-    if( max > 0.0 ) { // NOTE: if Max is == 0, this divide would cause a crash
+    if( max > (float)0.0 ) { // NOTE: if Max is == 0, this divide would cause a crash
         out.s = (delta / max);                  // s
     } else {
         // if max is 0, then r = g = b = 0              
         // s = 0, h is undefined
-        out.s = 0.0;
+        out.s = (float)0.0;
         out.h = NAN;                            // its now undefined
         return out;
     }
@@ -35,14 +35,14 @@ hsv rgb2hsv(rgb in)
         out.h = ( in.g - in.b ) / delta;        // between yellow & magenta
     else
     if( in.g >= max )
-        out.h = 2.0 + ( in.b - in.r ) / delta;  // between cyan & yellow
+        out.h = (float)2.0 + ( in.b - in.r ) / delta;  // between cyan & yellow
     else
-        out.h = 4.0 + ( in.r - in.g ) / delta;  // between magenta & cyan
+        out.h = (float)4.0 + ( in.r - in.g ) / delta;  // between magenta & cyan
 
-    out.h *= 60.0;                              // degrees
+    out.h *= (float)60.0;                              // degrees
 
-    if( out.h < 0.0 )
-        out.h += 360.0;
+    if( out.h < (float)0.0 )
+        out.h += (float)360.0;
 
     return out;
 }
@@ -70,18 +70,18 @@ hsv rgb_delta2hsv_delta(rgb_delta in){
 
     out.v = max;                                // v
     delta = max - min;
-    if (delta < 0.00001)
+    if (delta < (float)0.00001)
     {
-        out.s = 0;
-        out.h = 0; // undefined, maybe nan?
+        out.s = (float)0;
+        out.h = (float)0; // undefined, maybe nan?
         return out;
     }
-    if( abs_max > 0.0 ) { // NOTE: if Max is == 0, this divide would cause a crash
+    if( abs_max > (float)0.0 ) { // NOTE: if Max is == 0, this divide would cause a crash
         out.s = (delta / (2*abs_max));                  // s
     } else {
         // if max is 0, then r = g = b = 0              
         // s = 0, h is undefined
-        out.s = 0.0;
+        out.s = (float)0.0;
         out.h = NAN;                            // its now undefined
         return out;
     }
@@ -89,14 +89,14 @@ hsv rgb_delta2hsv_delta(rgb_delta in){
         out.h = ( in.g - in.b ) / delta;        // between yellow & magenta
     else
     if( in.g >= max )
-        out.h = 2.0 + ( in.b - in.r ) / delta;  // between cyan & yellow
+        out.h = (float)2.0 + ( in.b - in.r ) / delta;  // between cyan & yellow
     else
-        out.h = 4.0 + ( in.r - in.g ) / delta;  // between magenta & cyan
+        out.h = (float)4.0 + ( in.r - in.g ) / delta;  // between magenta & cyan
 
-    out.h *= 60.0;                              // degrees
+    out.h *= (float)60.0;                              // degrees
 
-    if( out.h < 0.0 )
-        out.h += 360.0;
+    if( out.h < (float)0.0 )
+        out.h += (float)360.0;
 
     return out;
 }
@@ -108,20 +108,20 @@ rgb hsv2rgb(hsv in)
     long        i;
     rgb         out;
 
-    if(in.s <= 0.0) {       // < is bogus, just shuts up warnings
+    if(in.s <= (float)0.0) {       // < is bogus, just shuts up warnings
         out.r = in.v;
         out.g = in.v;
         out.b = in.v;
         return out;
     }
     hh = in.h;
-    if(hh >= 360.0) hh = 0.0;
-    hh /= 60.0;
+    if(hh >= (float)360.0) hh = (float)0.0;
+    hh /= (float)60.0;
     i = (long)hh;
     ff = hh - i;
-    p = in.v * (1.0 - in.s);
-    q = in.v * (1.0 - (in.s * ff));
-    t = in.v * (1.0 - (in.s * (1.0 - ff)));
+    p = in.v * ((float)1.0 - in.s);
+    q = in.v * ((float)1.0 - (in.s * ff));
+    t = in.v * ((float)1.0 - (in.s * ((float)1.0 - ff)));
 
     switch(i) {
     case 0:
