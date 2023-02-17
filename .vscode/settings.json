@@ -26,6 +26,10 @@
         "circular_buffer.h": "c",
         "stdint.h": "c",
         "color.h": "c",
-        "knn.h": "c"
-    }
+        "knn.h": "c",
+        "compare": "c",
+        "stdlib.h": "c",
+        "algorithm": "c"
+    },
+    "C_Cpp.errorSquiggles": "enabled"
 }

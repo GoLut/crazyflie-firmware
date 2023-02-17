@@ -106,7 +106,7 @@
     #define PID_VEL_Z_FILT_CUTOFF 20.0f
 #endif
 #ifndef PID_VEL_Z_FILT_CUTOFF_BARO_Z_HOLD
-    #define PID_VEL_Z_FILT_CUTOFF_BARO_Z_HOLD 0.7 f
+    #define PID_VEL_Z_FILT_CUTOFF_BARO_Z_HOLD 0.7f
 #endif
 
 // Tumble detection enabled by default

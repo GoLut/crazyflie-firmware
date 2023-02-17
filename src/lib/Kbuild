@@ -63,3 +63,6 @@ obj-y += Custom_Libs/KNN_lib/src/KNN.o
 
 #circular buffer 
 obj-y += Custom_Libs/Circular_Buffer_lib/src/circular_buffer.o
+
+#particle filter
+obj-y += Custom_Libs/Particle_Filter_lib/src/Particle_filter.o
