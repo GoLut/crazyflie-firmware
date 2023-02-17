@@ -11,7 +11,7 @@
 #include "autoconf.h"
 
 #define DEFAULT_CONTROLLER ControllerTypePID
-static ControllerType currentController = ControllerTypeAny;
+static ControllerType currentController = ControllerTypeAutoSelect;
 
 static void initController();
 
@@ -28,6 +28,9 @@ static ControllerFcns controllerFunctions[] = {
   {.init = controllerMellingerFirmwareInit, .test = controllerMellingerFirmwareTest, .update = controllerMellingerFirmware, .name = "Mellinger"},
   {.init = controllerINDIInit, .test = controllerINDITest, .update = controllerINDI, .name = "INDI"},
   {.init = controllerBrescianiniInit, .test = controllerBrescianiniTest, .update = controllerBrescianini, .name = "Brescianini"},
+  #ifdef CONFIG_CONTROLLER_OOT
+  {.init = controllerOutOfTreeInit, .test = controllerOutOfTreeTest, .update = controllerOutOfTree, .name = "OutOfTree"},
+  #endif
 };
 
 
@@ -38,7 +41,7 @@ void controllerInit(ControllerType controller) {
 
   currentController = controller;
 
-  if (ControllerTypeAny == currentController) {
+  if (ControllerTypeAutoSelect == currentController) {
     currentController = DEFAULT_CONTROLLER;
   }
 
@@ -51,11 +54,11 @@ void controllerInit(ControllerType controller) {
   #elif defined(CONFIG_CONTROLLER_BRESCIANINI)
     #define CONTROLLER ControllerTypeBrescianini
   #else
-    #define CONTROLLER ControllerTypeAny
+    #define CONTROLLER ControllerTypeAutoSelect
   #endif
 
   ControllerType forcedController = CONTROLLER;
-  if (forcedController != ControllerTypeAny) {
+  if (forcedController != ControllerTypeAutoSelect) {
     DEBUG_PRINT("Controller type forced\n");
     currentController = forcedController;
   }
