@@ -13,7 +13,7 @@
 #define PARTICLE_FILTER_MAX_MAP_SIZE 1000 //cm
 #define PARTICLE_FILTER_STARTING_Z 200//cm
 
-#define updateTimeIntevalParticleIMU 100 //ms
+#define UPDATE_TIME_INTERVAL_PARTICLE_POS 100 //ms
 #define UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE 2000 //ms
 
 
@@ -191,6 +191,9 @@ uint8_t particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
 
     //X amount of time has passed and we use the average IMU data to determine the new pose
     //of the particles
-    if (time_since_last_imu_update + UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE) < sys_time_ms))
+    if ((time_since_last_imu_update + UPDATE_TIME_INTERVAL_PARTICLE_POS) < sys_time_ms){
+        perform_motion_model_step();
+        
+    }
     return 1;
 }
