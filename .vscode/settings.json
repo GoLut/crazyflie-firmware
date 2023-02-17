@@ -14,6 +14,18 @@
         "i2c_drv.h": "c",
         "param.h": "c",
         "driver_tcs34725_interrupt.h": "c",
-        "*.tcc": "c"
+        "*.tcc": "c",
+        "ranges": "c",
+        "type_traits": "c",
+        "_ansi.h": "c",
+        "config.h": "c",
+        "newlib.h": "c",
+        "_newlib_version.h": "c",
+        "features.h": "c",
+        "assert.h": "c",
+        "circular_buffer.h": "c",
+        "stdint.h": "c",
+        "color.h": "c",
+        "knn.h": "c"
     }
 }

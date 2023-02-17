@@ -361,6 +361,7 @@ void colorDeckTask(void* arg){
             
             //classify sensor data
             KNNPoint testPoint = {.hue_polar= tcs34725_data_struct0.hsv_delta_data.h, .sat_polar = tcs34725_data_struct0.hsv_delta_data.s, .x_cart = 0, .y_cart = 0, .ID = -1};
+            // DEBUG_PRINT("H: %.6f, S: %.6f", (double)testPoint.hue_polar, (double)testPoint.sat_polar);
             uint8_t classificationID;
             int8_t tempResult = predictLabelOfPoint(&testPoint, trainingPoints, &classificationID,  3);
             // if data is valid continue (0 or larger, -1 is invalid)
@@ -374,7 +375,6 @@ void colorDeckTask(void* arg){
                     DEBUG_PRINT("AVERAGEFOUND: %d \n", classificationID);
                     uint8_t previous_classified_color;
                     circular_buf_peek(cbuf_color_history, &previous_classified_color, 0);
-
                     if (previous_classified_color != classificationID){
                         circular_buf_put(cbuf_color_history, classificationID);
                     }

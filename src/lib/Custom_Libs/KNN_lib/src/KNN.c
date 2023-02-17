@@ -143,13 +143,13 @@ int16_t KNNClassification(KNNPoint * p0, TrainingPoint arr[], uint8_t K) {
  * @param p0 Pointer to the KNNPoint to classify
  * @param arr Array of training data NOTE that this data will be shuffeled around. Can not contain more than 254 types of data.
  * @param K K neighbors to look at, must be smaller than number of training points
- * @return int16_t Returns the ID in integer format. If -1 and error occured.
+ * @return int16_t Returns 1 if correct and . If -1 and error occured.
  */
 int8_t predictLabelOfPoint(KNNPoint *p0, TrainingPoint arr[], uint8_t* buffer, uint8_t K){
 
     //ensure that we have carthesian coordinates and not just polar
     // Serial.println("polarToCartConversion:");
-    // pol2Cart(p0); 
+    pol2Cart(p0); 
 
     // Serial.println("calc distances:");
     calcDistances(p0, arr);

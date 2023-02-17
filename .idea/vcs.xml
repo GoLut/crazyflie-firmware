@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/CMSIS" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/FreeRTOS" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/cmock" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/cmock/vendor/c_exception" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/cmock/vendor/c_exception/vendor/unity" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/cmock/vendor/unity" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/libdw1000" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/libdw1000/vendor/cmock" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/libdw1000/vendor/cmock/vendor/c_exception" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/libdw1000/vendor/cmock/vendor/c_exception/vendor/unity" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/libdw1000/vendor/cmock/vendor/unity" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/libdw1000/vendor/unity" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vendor/unity" vcs="Git" />
+  </component>
+</project>
