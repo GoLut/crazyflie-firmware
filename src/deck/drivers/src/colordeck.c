@@ -227,6 +227,7 @@ void readAndProcessColorSensorsIfDataAvaiable() {
         processRawData(&tcs34725_data_struct0);
         //for processing the delta data. We need 2 new available samples and we set this parameter to indicate so.
         new_data_flag0 = true;
+        DEBUG_PRINT("s0: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
     }
 
     //check interrupt flag sens 1 and amount of samples aready taken.
@@ -237,6 +238,8 @@ void readAndProcessColorSensorsIfDataAvaiable() {
         processRawData(&tcs34725_data_struct1);
         //for processing the delta data. We need 2 new available samples and we set this parameter to indicate so.
         new_data_flag1 = true;
+        DEBUG_PRINT("s1: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
+
     }
 }
 
@@ -367,12 +370,12 @@ void colorDeckTask(void* arg){
             // if data is valid continue (0 or larger, -1 is invalid)
             if (tempResult > 0){
             // Average of some sorts. we are in a new color if we have received N of the same classifications
-                DEBUG_PRINT("We are recieving color ID: %d \n", classificationID);
+                DEBUG_PRINT("We are recieving color ID: %d \n", (classificationID+1));
                 // DEBUG_PRINT("AverageClassificationResult: %d", AverageCollorClassification(&classificationID, cbuf_color_recent));
                 if (AverageCollorClassification(&classificationID, cbuf_color_recent) == 1){
                     //If above condition is true we check if the new color is different than the previously stored color
                     //We can do this because the pattern guarentees a unique color is next. 
-                    DEBUG_PRINT("AVERAGEFOUND: %d \n", classificationID);
+                    DEBUG_PRINT("AVERAGEFOUND: %d \n", (classificationID+1));
                     uint8_t previous_classified_color;
                     circular_buf_peek(cbuf_color_history, &previous_classified_color, 0);
                     if (previous_classified_color != classificationID){
