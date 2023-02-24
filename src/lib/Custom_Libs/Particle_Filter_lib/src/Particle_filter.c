@@ -1,6 +1,9 @@
 #include "Particle_filter.h"
 #include <stdbool.h>
 #include <stdlib.h>
+#include <math.h>
+#include "log.h"
+
 
 #define NUMBER_OF_COLORS 8
 
@@ -13,8 +16,13 @@
 #define PARTICLE_FILTER_MAX_MAP_SIZE 1000 //cm
 #define PARTICLE_FILTER_STARTING_Z 200//cm
 
-#define UPDATE_TIME_INTERVAL_PARTICLE_POS 100 //ms
+#define UPDATE_TIME_INTERVAL_PARTICLE_POS 10 //ms
 #define UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE 2000 //ms
+
+//acceleration data from IMU
+float a_x = 0.0f;
+float a_y = 0.0f;
+float a_z = 0.0f;
 
 
 //https://stackoverflow.com/questions/11641629/generating-a-uniform-distribution-of-integers-in-c
@@ -56,7 +64,7 @@ uint8_t particle_filter_init(){
 
 void calc_cell_size_at_particle_distance(Particle * p, float* cell_size){
     //formula for the cell size over distance is linear
-    *cell_size = ((p->z_curr - LENS_FOCAL_LENGTH)/ LENS_FOCAL_LENGTH) * MAP_CELL_SIZE;
+    *cell_size = ((p->z_curr - (float)LENS_FOCAL_LENGTH)/ (float)LENS_FOCAL_LENGTH) * (float)MAP_CELL_SIZE;
 }
 
 uint8_t color_map_LUT(int16_t x, int16_t y, float cell_size){
@@ -161,8 +169,7 @@ void resample_particles(){
 uint8_t particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
     //colors 0-7 are valid colors , 8 is invalid color
     static uint8_t last_recieved_color_ID = NUMBER_OF_COLORS;
-    bool doColorUpdate = true;
-    
+
     //timing parameters static initialized to 0 keep track on when a new particle update needs to happen
     static uint32_t time_since_last_resample = 0;
     static uint32_t time_since_last_imu_update = 0;
@@ -189,10 +196,37 @@ uint8_t particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
         last_recieved_color_ID = recieved_color_ID;
     }
 
+    void perform_motion_model_step(Particle* p){
+        //Update pose
+        p_dx = 0.5f*(v_x_ + v_x_ + (a_x * sampleTimeInS))* sampleTimeInS;
+        p_dy = 0.5f*(v_y_ + v_y_ + (a_y * sampleTimeInS))* sampleTimeInS;
+        p_dz = 0.5f*(v_z_ + v_z_ + (a_z * sampleTimeInS))* sampleTimeInS;
+
+        //Update velocity
+        v_x_ = p-> + (a_x * sampleTimeInS);
+        v_y_ = p/v_y_ + (a_y * sampleTimeInS);
+        v_z_ = v_z_ + (a_z * sampleTimeInS);
+
+    }
+
     //X amount of time has passed and we use the average IMU data to determine the new pose
     //of the particles
     if ((time_since_last_imu_update + UPDATE_TIME_INTERVAL_PARTICLE_POS) < sys_time_ms){
-        perform_motion_model_step();
+        //update acceleration data based on last log parameter avaiable
+        //log ID
+        logVarId_t id_acc_x = logGetVarId("stateEstimate", "ax");
+        logVarId_t id_acc_y = logGetVarId("stateEstimate", "ay");
+        logVarId_t id_acc_z = logGetVarId("stateEstimate", "az");
+
+        //Get the logging data
+        a_x = logGetFloat(id_acc_x);
+        a_y = logGetFloat(id_acc_y);
+        a_z = logGetFloat(id_acc_z);
+
+        for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++)
+            {
+                perform_motion_model_step(particles[i]);
+            }
         
     }
     return 1;

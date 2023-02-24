@@ -29,7 +29,11 @@
         "knn.h": "c",
         "compare": "c",
         "stdlib.h": "c",
-        "algorithm": "c"
+        "algorithm": "c",
+        "freertos.h": "c",
+        "portable.h": "c",
+        "math.h": "c",
+        "particle_filter.h": "c"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

@@ -9,9 +9,15 @@
 //a particle is a single aporximation of the location of the crazyflie
 typedef struct Particles
 {
+    //the velocity 1 time step back
+    float v_x_, v_y_, v_z_;
+    //the current position before resampling
     float x_curr, y_curr, z_curr;
+    //new possiition after resampling
     float x_new, y_new, z_new;
+    //probability of the particle based on its location
     uint16_t prob;
+    //expected color based on its location
     uint8_t expected_color;
 } Particle;
 
@@ -43,7 +49,7 @@ uint8_t particle_filter_init();
 
 //this function needs to be run and will update the particle filter
 //we give it the delta time to estimate the traversed distance.
-uint8_t particle_filter_update(uint8_t last_recieved_color_ID);
+uint8_t particle_filter_update(uint8_t last_recieved_color_ID, uint32_t sys_time_ms);
 
 
 #endif // PARTICLE_FILTER_H_

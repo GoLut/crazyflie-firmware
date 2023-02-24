@@ -27,11 +27,16 @@
 // RTOS new TASKS
 #define COLORDECK_TASK_STACKSIZE  (7*configMINIMAL_STACK_SIZE) 
 #define COLORDECK_TASK_NAME "COLORDECKTASK"
-#define COLORDECK_TASK_PRI 3
+#define COLORDECK_TASK_PRI 2
 
-#define GPIOMONITOR_TASK_STACKSIZE  (2*configMINIMAL_STACK_SIZE) 
+#define GPIOMONITOR_TASK_STACKSIZE  (configMINIMAL_STACK_SIZE) 
 #define GPIOMONITOR_TASK_NAME "GPIOMonitor"
 #define GPIOMONITOR_TASK_PRI 4
+
+#define UPDATESTATE_TASK_STACKSIZE  (configMINIMAL_STACK_SIZE) 
+#define UPDATESTATE_TASK_NAME "UPDATESTATETASK"
+#define UPDATESTATE_TASK_PRI 5
+
 
 //TCSColor sensor defines
 #define TCS34725_SENS0_TCA9548A_CHANNEL TCA9548A_CHANNEL7
@@ -41,6 +46,7 @@
 static bool isInit = false;
 void colorDeckTask(void* arg);
 void gpioMonitorTask(void* arg);
+void updateStateTask(void* arg);
 
 //TCA9548a settings
 static tca9548a_handle_t tca9548a_handle;    /**< tca9548a handle */
@@ -89,8 +95,6 @@ void read_raw_data_to_struct(tcs34725_Color_data *data_struct, tcs34725_handle_t
                                      device_handle);
 
     if (TCS_result != 0){DEBUG_PRINT("WARNING: no data received\n");}
-
-
 }
 
 
@@ -140,6 +144,8 @@ static void colorDeckInit()
     //New RTOS task
     xTaskCreate(colorDeckTask,COLORDECK_TASK_NAME, COLORDECK_TASK_STACKSIZE, NULL, COLORDECK_TASK_PRI, NULL);
     xTaskCreate(gpioMonitorTask, GPIOMONITOR_TASK_NAME, GPIOMONITOR_TASK_STACKSIZE, NULL, GPIOMONITOR_TASK_PRI, NULL);
+    xTaskCreate(updateStateTask, UPDATESTATE_TASK_NAME, UPDATESTATE_TASK_STACKSIZE, NULL, UPDATESTATE_TASK_PRI, NULL);
+
 
 //set hardware specific parameters and GPIO
     //TCS34725
@@ -283,6 +289,66 @@ void gpioMonitorTask(void* arg){
             isr_sens1();
             // DEBUG_PRINT("Sens1: int pin low detected.\n");
         }
+    }
+}
+
+void updateStateTask(void* arg){
+    // Wait for system to start
+    systemWaitStart();
+    // the last time the function was called
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    //startup delay
+    const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
+    vTaskDelay(xDelay);
+
+    // //acceleration t0
+    // float a_x = 0.0f;
+    // float a_y = 0.0f;
+    // float a_z = 0.0f;
+
+    // //velocity t0
+    // float v_x_ = 0.0f;
+    // float v_y_ = 0.0f;
+    // float v_z_ = 0.0f;
+
+    // //Position t0
+    // float p_dx = 0.0f;
+    // float p_dy = 0.0f;
+    // float p_dz = 0.0f;
+    
+    // logVarId_t id_acc_x = logGetVarId("stateEstimate", "ax");
+    // logVarId_t id_acc_y = logGetVarId("stateEstimate", "ay");
+    // logVarId_t id_acc_z = logGetVarId("stateEstimate", "az");
+
+    const uint8_t sampleTimeInMs = 10; //ms
+    // const float sampleTimeInS = ((float)sampleTimeInMs)/1000;
+
+    uint32_t count = 0;
+
+    while(1) {
+        //Do every x mili seconds
+        vTaskDelayUntil(&xLastWakeTime, M2T(sampleTimeInMs));
+        
+        // //Get the logging data
+        // a_x = logGetFloat(id_acc_x);
+        // a_y = logGetFloat(id_acc_y);
+        // a_z = logGetFloat(id_acc_z);
+
+        // //Update pose
+        // p_dx = 0.5f*(v_x_ + v_x_ + (a_x * sampleTimeInS))* sampleTimeInS;
+        // p_dy = 0.5f*(v_y_ + v_y_ + (a_y * sampleTimeInS))* sampleTimeInS;
+        // p_dz = 0.5f*(v_z_ + v_z_ + (a_z * sampleTimeInS))* sampleTimeInS;
+
+        // //Update velocity
+        // v_x_ = v_x_ + (a_x * sampleTimeInS);
+        // v_y_ = v_y_ + (a_y * sampleTimeInS);
+        // v_z_ = v_z_ + (a_z * sampleTimeInS);
+
+        // if (count % 10 == 0){
+        //     DEBUG_PRINT("ax: %f m/s^2, vx: %f m/s, x: %f m\n", (double)a_x, (double)v_x_, (double)p_dx);
+        //     count = 0;
+        // }
+        count ++; 
     }
 }
 
