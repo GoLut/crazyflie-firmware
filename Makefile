@@ -65,6 +65,7 @@ INCLUDES += -I$(LIB)/Custom_Libs/TCS34725_driver/src
 INCLUDES += -I$(LIB)/Custom_Libs/KNN_lib/src
 INCLUDES += -I$(LIB)/Custom_Libs/Circular_Buffer_lib/src
 INCLUDES += -I$(LIB)/Custom_Libs/Particle_Filter_lib/src
+INCLUDES += -I$(LIB)/Custom_Libs/Gen_Norm_lib/src
 
 # Here we tell Kbuild where to look for Kbuild files which will tell the
 # buildsystem which sources to build

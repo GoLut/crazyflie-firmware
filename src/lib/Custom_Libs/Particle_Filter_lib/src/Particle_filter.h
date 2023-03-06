@@ -10,7 +10,7 @@
 typedef struct Particles
 {
     //the velocity 1 time step back
-    float v_x_, v_y_, v_z_;
+    // float v_x_, v_y_, v_z_;
     //the current position before resampling
     float x_curr, y_curr, z_curr;
     //new possiition after resampling
@@ -20,6 +20,34 @@ typedef struct Particles
     //expected color based on its location
     uint8_t expected_color;
 } Particle;
+
+/*
+// This particle type is intended to be a motion model particle,
+// This is an extended particle that tracks all aspects of a motion model 
+// eg acceleration and velocity and velocity at t-1 . 
+
+// This information is then used to calculate the pose of the motion model particle. 
+// This pose is then transferred to all regular particles with some normal dist noise
+ 
+// This is done to save a lot of memory cause in the end we only
+// care about he possition of the particle and not so much the velocity and acceleration.
+
+// The motion model is based on the Paper (thesis paper)
+*/
+typedef struct MotionModelParticles
+{
+    //acceleration
+    float a_x, a_y, a_z;
+    //the velocity
+    float v_x, v_y, v_z;
+    //the velocity 1 time step back
+    float v_x_, v_y_, v_z_;
+    //the current position
+    float x_curr, y_curr, z_curr;
+
+} MotionModelParticle;
+
+
 
 //unititialized array of particles 
 //we statically allocate this before hand.

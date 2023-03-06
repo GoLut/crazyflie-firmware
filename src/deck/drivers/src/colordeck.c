@@ -14,6 +14,7 @@
 
 //TCA9548a sensor header file
 #include "driver_tca9548a_basic.h"
+
 //TCS34725 sensor header files
 #include "driver_tcs34725_interrupt.h"
 #include "color.h"
@@ -23,6 +24,9 @@
 
 // //Circular Buffer
 #include "circular_buffer.h"
+
+//particle filter
+
 
 // RTOS new TASKS
 #define COLORDECK_TASK_STACKSIZE  (7*configMINIMAL_STACK_SIZE) 
@@ -142,7 +146,7 @@ static void colorDeckInit()
     i2cdevInit(I2C1_DEV);
 
     //New RTOS task
-    xTaskCreate(colorDeckTask,COLORDECK_TASK_NAME, COLORDECK_TASK_STACKSIZE, NULL, COLORDECK_TASK_PRI, NULL);
+    xTaskCreate(colorDeckTask, COLORDECK_TASK_NAME, COLORDECK_TASK_STACKSIZE, NULL, COLORDECK_TASK_PRI, NULL);
     xTaskCreate(gpioMonitorTask, GPIOMONITOR_TASK_NAME, GPIOMONITOR_TASK_STACKSIZE, NULL, GPIOMONITOR_TASK_PRI, NULL);
     xTaskCreate(updateStateTask, UPDATESTATE_TASK_NAME, UPDATESTATE_TASK_STACKSIZE, NULL, UPDATESTATE_TASK_PRI, NULL);
 
@@ -300,25 +304,6 @@ void updateStateTask(void* arg){
     //startup delay
     const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
-
-    // //acceleration t0
-    // float a_x = 0.0f;
-    // float a_y = 0.0f;
-    // float a_z = 0.0f;
-
-    // //velocity t0
-    // float v_x_ = 0.0f;
-    // float v_y_ = 0.0f;
-    // float v_z_ = 0.0f;
-
-    // //Position t0
-    // float p_dx = 0.0f;
-    // float p_dy = 0.0f;
-    // float p_dz = 0.0f;
-    
-    // logVarId_t id_acc_x = logGetVarId("stateEstimate", "ax");
-    // logVarId_t id_acc_y = logGetVarId("stateEstimate", "ay");
-    // logVarId_t id_acc_z = logGetVarId("stateEstimate", "az");
 
     const uint8_t sampleTimeInMs = 10; //ms
     // const float sampleTimeInS = ((float)sampleTimeInMs)/1000;
