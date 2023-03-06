@@ -251,11 +251,11 @@ void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
 
     //TODO optimize the standart deviation on the particle noise;
     //make the standart deviation number of motion model step dependent to prevent abnormally large noise on small steps
-    float std_dev = 0.5f*UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS; 
+    const float std_dev = 0.5f*UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS; 
 
     for (uint16_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++){
         //obtain a normally distributed noise
-        norm2(0,4, &noise_x, &noise_y);
+        norm2(0,std_dev, &noise_x, &noise_y);
         //update the particle pose
         //NOTE that it can happen that the motion model is updated while we are updating the particles here that is okay
         //this will cause some particles to move a little further than others. 

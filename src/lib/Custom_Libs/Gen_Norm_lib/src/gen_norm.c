@@ -39,7 +39,7 @@ float rand_val();                 // Jain's RNG
 //=    - Input: mean and standard deviation                                 =
 //=    - Output: Returns 2 valiues with normally distributed random variable=
 //===========================================================================
-float norm2(float mean, float std_dev, float* n0, float* n1)
+void norm2(float mean, float std_dev, float* n0, float* n1)
 {
   float   u, r, theta;           // Variables for Box-Muller method
   float   x0, x1;                // Normal(0, 1) rv
@@ -68,7 +68,7 @@ float norm2(float mean, float std_dev, float* n0, float* n1)
 
   // Return the normally distributed RV value
   *n0 = norm_rv0;
-  *n1 = norm_rv1
+  *n1 = norm_rv1;
 }
 
 //===========================================================================
@@ -77,7 +77,7 @@ float norm2(float mean, float std_dev, float* n0, float* n1)
 //=    - Input: mean and standard deviation                                 =
 //=    - Output: Returns 1 valiues with normally distributed random variable=
 //===========================================================================
-float norm1(float mean, float std_dev, float* n0)
+void norm1(float mean, float std_dev, float* n0)
 {
   float   u, r, theta;           // Variables for Box-Muller method
   float   x0;                // Normal(0, 1) rv
