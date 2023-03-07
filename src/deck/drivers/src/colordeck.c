@@ -22,11 +22,11 @@
 //color classification
 #include "KNN.h"
 
-// //Circular Buffer
+// Circular Buffer
 #include "circular_buffer.h"
 
 //particle filter
-
+#include "Particle_filter.h"
 
 // RTOS new TASKS
 #define COLORDECK_TASK_STACKSIZE  (7*configMINIMAL_STACK_SIZE) 
@@ -101,7 +101,6 @@ void read_raw_data_to_struct(tcs34725_Color_data *data_struct, tcs34725_handle_t
     if (TCS_result != 0){DEBUG_PRINT("WARNING: no data received\n");}
 }
 
-
 /**
  * This function resets the TCS34725 sensor by
  * Reading the data and discarding the TCS_result (causes some internal sensor trigger to reset and pull the interrupt line high)
@@ -145,16 +144,18 @@ static void colorDeckInit()
     //initializing the I2C driver of the crazyflie
     i2cdevInit(I2C1_DEV);
 
-    //New RTOS task
+    //New RTOS tasks
     xTaskCreate(colorDeckTask, COLORDECK_TASK_NAME, COLORDECK_TASK_STACKSIZE, NULL, COLORDECK_TASK_PRI, NULL);
     xTaskCreate(gpioMonitorTask, GPIOMONITOR_TASK_NAME, GPIOMONITOR_TASK_STACKSIZE, NULL, GPIOMONITOR_TASK_PRI, NULL);
     xTaskCreate(updateStateTask, UPDATESTATE_TASK_NAME, UPDATESTATE_TASK_STACKSIZE, NULL, UPDATESTATE_TASK_PRI, NULL);
 
 
-//set hardware specific parameters and GPIO
+//* set hardware specific parameters and GPIO
     //TCS34725
     pinMode(TCS34725_0_INT_GPIO_PIN, INPUT_PULLUP);
     pinMode(TCS34725_1_INT_GPIO_PIN, INPUT_PULLUP);
+    //TCA9548 
+    pinMode(TCA9548A_RESET_GPIO_PIN, OUTPUT);
 
     //set some data struct parameters
     tcs34725_data_struct0.ID = 0;
@@ -162,28 +163,21 @@ static void colorDeckInit()
     isr_flag_sens0 = false;
     isr_flag_sens1 = false;
 
-    //TCA9548
-    pinMode(TCA9548A_RESET_GPIO_PIN, OUTPUT);
-
-
-    //init the hardware:
-    //TCA9548
+    //*init the hardware:
+    //TCA9548 color sensor
     TCA_result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
     if (TCA_result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
     else{DEBUG_PRINT("Init of tca9548a successful\n");}
 
     //select the correct channel for the i2c mux for initialization
-    vTaskDelay(1);
     tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
     TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
     if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
     else{DEBUG_PRINT("Init of tcs34725 sens 0 successful\n");}
     
+    // init second color sensor
     // switching i2c channel
-    // vTaskDelay(1);
     tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
-    
-    //init second color sensor
     TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
     if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
     else{DEBUG_PRINT("Init of tcs34725 sens 1 successful\n");}
@@ -192,10 +186,8 @@ static void colorDeckInit()
     cbuf_color_history = circular_buf_init(buffer_h, HISTORIC_COLOR_BUFFER_SIZE, cbuf_color_history);
     cbuf_color_recent = circular_buf_init(buffer_r, RECENT_COLOR_BUFFER_SIZE, cbuf_color_recent);
 
-    // DEBUG_PRINT("value %u", cbuf_color_history->full);
-    // DEBUG_PRINT("value %u", cbuf_color_recent->full);
-
-    // (void)me; //temp shuts up the compiler
+    //init the particle filter
+    particle_filter_init();
 
     // we are done init
     isInit = true;
@@ -250,7 +242,6 @@ void readAndProcessColorSensorsIfDataAvaiable() {
     }
 }
 
-
 /**
  * This function takes 2 color data structs and processes the delta RGB and HSV data.
  * It saves the result in both structs. and sets the "new_data_flag0" back to false.
@@ -262,9 +253,10 @@ void processDeltaColorSensorData() {
 
     // printTheData(&tcs34725_data_struct0, &tcs34725_data_struct1);
 }
+
 /**
  * Listener to the GPIO pins
- * This function is a replacement for an pin attached ISR on the rising edge. a to-do for later implementations
+ * Todo This function is a replacement for an pin attached ISR on the rising edge. a To-do for later implementations
  * For now it polls the status of the pins and if the conditions are matched we set the flag.
  */
 void gpioMonitorTask(void* arg){
@@ -277,14 +269,9 @@ void gpioMonitorTask(void* arg){
     vTaskDelay(xDelay);
 
     while(1) {
-        //TODO when done testing remove this delay
+        //check every 10 system ticks
         vTaskDelayUntil(&xLastWakeTime, M2T(10));
-        // DEBUG_PRINT("detecting GPIO LEVELS\n");
-        // //TODO Remove when done debugging, also check if the set conditions don't cause any issues.
-        // uint8_t tcs34725_0_int_value = (uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN);
-        // uint8_t tcs34725_1_int_value = (uint8_t) digitalRead(TCS34725_1_INT_GPIO_PIN);
-        // DEBUG_PRINT("Sens0: %d, Sens1: %d \n", tcs34725_0_int_value, tcs34725_1_int_value);
-
+        // DEBUG_PRINT("detecting GPIO LEVELS\n");        
         if (!isr_flag_sens0 && !((uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN))){
             isr_sens0();
             // DEBUG_PRINT("Sens0: int pin low detected.\n");
@@ -305,35 +292,10 @@ void updateStateTask(void* arg){
     const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
 
-    const uint8_t sampleTimeInMs = 10; //ms
-    // const float sampleTimeInS = ((float)sampleTimeInMs)/1000;
-
-    uint32_t count = 0;
-
     while(1) {
         //Do every x mili seconds
-        vTaskDelayUntil(&xLastWakeTime, M2T(sampleTimeInMs));
-        
-        // //Get the logging data
-        // a_x = logGetFloat(id_acc_x);
-        // a_y = logGetFloat(id_acc_y);
-        // a_z = logGetFloat(id_acc_z);
-
-        // //Update pose
-        // p_dx = 0.5f*(v_x_ + v_x_ + (a_x * sampleTimeInS))* sampleTimeInS;
-        // p_dy = 0.5f*(v_y_ + v_y_ + (a_y * sampleTimeInS))* sampleTimeInS;
-        // p_dz = 0.5f*(v_z_ + v_z_ + (a_z * sampleTimeInS))* sampleTimeInS;
-
-        // //Update velocity
-        // v_x_ = v_x_ + (a_x * sampleTimeInS);
-        // v_y_ = v_y_ + (a_y * sampleTimeInS);
-        // v_z_ = v_z_ + (a_z * sampleTimeInS);
-
-        // if (count % 10 == 0){
-        //     DEBUG_PRINT("ax: %f m/s^2, vx: %f m/s, x: %f m\n", (double)a_x, (double)v_x_, (double)p_dx);
-        //     count = 0;
-        // }
-        count ++; 
+        vTaskDelayUntil(&xLastWakeTime, M2T(UPDATE_TIME_INTERVAL_PARTICLE_POS));
+        particle_filter_tick();
     }
 }
 
@@ -401,28 +363,31 @@ void colorDeckTask(void* arg){
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
-        vTaskDelayUntil(&xLastWakeTime, M2T(100));
-        //we read the data if the interrupt pins of the color sensors have been detected low.
+        //run loop every 100 ms
+        vTaskDelayUntil(&xLastWakeTime, M2T(25));
+
+        //we read the sensor data if the interrupt pins of the color sensors have been detected low.
+        //flag will be set if new data is avaiable
         readAndProcessColorSensorsIfDataAvaiable();
-
         if ((new_data_flag0 == true) && (new_data_flag1 == true)) {
-
             //When both sensors have new data available we process the delta
             processDeltaColorSensorData();
             
-            //classify sensor data
+            //classify sensor data to be a specific color
             KNNPoint testPoint = {.hue_polar= tcs34725_data_struct0.hsv_delta_data.h, .sat_polar = tcs34725_data_struct0.hsv_delta_data.s, .x_cart = 0, .y_cart = 0, .ID = -1};
             // DEBUG_PRINT("H: %.6f, S: %.6f", (double)testPoint.hue_polar, (double)testPoint.sat_polar);
             uint8_t classificationID;
-            int8_t tempResult = predictLabelOfPoint(&testPoint, trainingPoints, &classificationID,  3);
-            // if data is valid continue (0 or larger, -1 is invalid)
-            if (tempResult > 0){
-            // Average of some sorts. we are in a new color if we have received N of the same classifications
+            int8_t predictionOutputValidity = predictLabelOfPoint(&testPoint, trainingPoints, &classificationID,  3);
+            
+            // if prediction data is valid continue (0 or larger, -1 is invalid)
+            if (predictionOutputValidity > 0){
                 DEBUG_PRINT("We are recieving color ID: %d \n", classificationID);
-                // DEBUG_PRINT("AverageClassificationResult: %d", AverageCollorClassification(&classificationID, cbuf_color_recent));
+                // Average of some sorts. we are in a new color if we have received N of the same classifications
+                
+                //If the next condition is true we check if the new color is different than the previously stored color
+                    //We can do this because the pattern guarentees a unique color is next.
+                    //This sequence is then saved in a buffer for future use.
                 if (AverageCollorClassification(&classificationID, cbuf_color_recent) == 1){
-                    //If above condition is true we check if the new color is different than the previously stored color
-                    //We can do this because the pattern guarentees a unique color is next. 
                     DEBUG_PRINT("AVERAGEFOUND: %d \n", classificationID);
                     uint8_t previous_classified_color;
                     circular_buf_peek(cbuf_color_history, &previous_classified_color, 0);
@@ -430,11 +395,23 @@ void colorDeckTask(void* arg){
                         circular_buf_put(cbuf_color_history, classificationID);
                     }
                 }
+            }else{
+                DEBUG_PRINT("WARNING invalid classification case encountered");
             }
             //set flags to 0 ready for the new measurement
             new_data_flag0 = false;
             new_data_flag1 = false;
         }
+
+        /**
+         * Update the particle filter in this section.
+        */
+        //retrieve the last found color
+        uint8_t last_classified_color;
+        circular_buf_peek(cbuf_color_history, &last_classified_color, 0);
+        //run the particle filter update function
+        DEBUG_PRINT("%lu", xTaskGetTickCount());
+        particle_filter_update(last_classified_color, xTaskGetTickCount());
     }
 }
 

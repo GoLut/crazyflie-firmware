@@ -161,7 +161,7 @@ int8_t predictLabelOfPoint(KNNPoint *p0, TrainingPoint arr[], uint8_t* buffer, u
     //KNNClassification
     int16_t result = KNNClassification(p0, arr, K);
 
-    //map the resulting output from the classification functio to this function.
+    //return result
     if (result == -1){
         return 0;
     }else{

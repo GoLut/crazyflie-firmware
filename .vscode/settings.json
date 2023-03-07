@@ -36,7 +36,8 @@
         "particle_filter.h": "c",
         "stm32f4xx.h": "c",
         "tm_stm32f4_rng.h": "c",
-        "gen_norm.h": "c"
+        "gen_norm.h": "c",
+        "driver_tca9548a_basic.h": "c"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }
