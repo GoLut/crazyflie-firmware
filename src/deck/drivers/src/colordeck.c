@@ -24,12 +24,8 @@
 // Circular Buffer
 #include "circular_buffer.h"
 
-//FSK:
-#include "arm_math.h"
-#define FSK_SAMPLES 32
-#define FFT_SIZE FSK_SAMPLES/2
-const int fsk_samplingFreq = 1000;
-
+//FSK
+#include "FSK.h"
 
 // RTOS new TASKS
 #define COLORDECK_TASK_STACKSIZE  (7*configMINIMAL_STACK_SIZE) 
@@ -43,7 +39,6 @@ const int fsk_samplingFreq = 1000;
 #define FSK_TASK_STACKSIZE  (20*configMINIMAL_STACK_SIZE) 
 #define FSK_TASK_NAME "FSKTASK"
 #define FSK_TASK_PRI 3
-
 
 //TCSColor sensor defines
 #define TCS34725_SENS0_TCA9548A_CHANNEL TCA9548A_CHANNEL7
@@ -81,6 +76,10 @@ cbuf_handle_t cbuf_color_history = &cbufCH;
 uint8_t buffer_r[RECENT_COLOR_BUFFER_SIZE]  = {0};
 circular_buf_t cbufCR;
 cbuf_handle_t cbuf_color_recent = &cbufCR;
+
+
+//FSK
+FSK_instance fsk_instance;
 
 /**
  * Read the information recieved from the TCS color sensors and saves this in the sensor struct. 
@@ -212,57 +211,29 @@ void fskTask(void* parameters) {
     systemWaitStart();
     TickType_t xLastWakeTime = xTaskGetTickCount();
     //startup delay
-    TickType_t xDelay = 4000; // portTICK_PERIOD_MS;
+    TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
   
-    //Some parameters
-    int f = 200;
-    int A = 1;
+    //run all the init of the FSK instance.
+    FSK_init(&fsk_instance);
 
-    /* Global variables */
-    float32_t Input[FSK_SAMPLES];
-    float32_t Output[FSK_SAMPLES/2];
-    
-
-    arm_cfft_radix4_instance_f32 S;    /* ARM CFFT module */
-    float32_t maxValue = 0;
-    uint32_t maxIndex = 0;
-    int peakFrequency = 0;
-
-
-    // for (int i = 0; i < FSK_SAMPLES; i++){
-    //     DEBUG_PRINT("%f \n", (double)Input[i]);
-    //     vTaskDelay(M2T(20));
-    // }
-    
-
+    //sample size of 16 would mean to process this every 16 ms
     while (1) {
-        vTaskDelayUntil(&xLastWakeTime, M2T(1000));
+        vTaskDelayUntil(&xLastWakeTime, M2T(10000));
+        q15_t input_buff[FSK_SAMPLE_BUFFER_SIZE];
+        generate_complex_sine_wave(&fsk_instance, input_buff,FSK_SAMPLE_BUFFER_SIZE, 1000);
 
-            //Create input signal
-        for(int i=0; i< FSK_SAMPLES; i+=2){
-            Input[i] = A*arm_sin_f32(2*PI*f*(i/2)/fsk_samplingFreq);
-            Input[i+1] = 0.0f;
-        }
+        // float32_t input_buff_float[FSK_SAMPLE_BUFFER_SIZE];
+        // arm_q15_to_float(input_buff, input_buff_float,FSK_SAMPLE_BUFFER_SIZE);
 
-        /* Initialize the CFFT/CIFFT module, intFlag = 0, doBitReverse = 1 */
-        arm_cfft_radix4_init_f32(&S, FFT_SIZE, 0, 1);
-        
-        /* Process the data through the CFFT/CIFFT module */
-        arm_cfft_radix4_f32(&S, Input);
-        
-        /* Process the data through the Complex Magniture Module for calculating the magnitude at each bin */
-        arm_cmplx_mag_f32(Input, Output, FFT_SIZE);
-        
-        /* Calculates maxValue and returns corresponding value */
-        arm_max_f32(Output, FFT_SIZE, &maxValue, &maxIndex);
-
-    	peakFrequency = maxIndex * fsk_samplingFreq / FSK_SAMPLES;
-
-    	DEBUG_PRINT("Peak frequency %d \n\r", peakFrequency);
-    	DEBUG_PRINT("Max Value:[%ld]:%f Output=[", maxIndex, (double)(2*maxValue/FSK_SAMPLES));
-    	DEBUG_PRINT("]\r\n");
-  }
+        // for (uint32_t i = 0; i < FSK_SAMPLE_BUFFER_SIZE; i++)
+        // {
+        //     DEBUG_PRINT("sinvalues: %f", (double)input_buff_float[i]);
+        // }
+        // DEBUG_PRINT("\n");
+            
+        get_current_frequency(&fsk_instance, input_buff);
+    }
 }
 
 

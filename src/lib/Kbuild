@@ -63,3 +63,6 @@ obj-y += Custom_Libs/KNN_lib/src/KNN.o
 
 #circular buffer 
 obj-y += Custom_Libs/Circular_Buffer_lib/src/circular_buffer.o
+
+#FSK instance
+obj-y += Custom_Libs/FSK_lib/src/FSK.o
