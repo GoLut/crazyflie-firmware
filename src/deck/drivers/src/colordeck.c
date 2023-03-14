@@ -32,13 +32,13 @@
 #define COLORDECK_TASK_NAME "COLORDECKTASK"
 #define COLORDECK_TASK_PRI 3
 
-#define GPIOMONITOR_TASK_STACKSIZE  (2*configMINIMAL_STACK_SIZE) 
-#define GPIOMONITOR_TASK_NAME "GPIOMonitor"
-#define GPIOMONITOR_TASK_PRI 4
+#define COLORDECKTICK_TASK_STACKSIZE  (2*configMINIMAL_STACK_SIZE) 
+#define COLORDECKTICK_TASK_NAME "GPIOMonitor"
+#define COLORDECKTICK_TASK_PRI 5
 
-#define FSK_TASK_STACKSIZE  (20*configMINIMAL_STACK_SIZE) 
+#define FSK_TASK_STACKSIZE  (5*configMINIMAL_STACK_SIZE) 
 #define FSK_TASK_NAME "FSKTASK"
-#define FSK_TASK_PRI 3
+#define FSK_TASK_PRI 2
 
 //TCSColor sensor defines
 #define TCS34725_SENS0_TCA9548A_CHANNEL TCA9548A_CHANNEL7
@@ -47,7 +47,7 @@
 //FreeRTOS settings
 static bool isInit = false;
 void colorDeckTask(void* arg);
-void gpioMonitorTask(void* arg);
+void colorDeckTickTask(void* arg);
 void fskTask(void* arg);
 
 //TCA9548a settings
@@ -79,7 +79,7 @@ cbuf_handle_t cbuf_color_recent = &cbufCR;
 
 
 //FSK
-FSK_instance fsk_instance;
+FSK_instance fsk_instance = {0};
 
 /**
  * Read the information recieved from the TCS color sensors and saves this in the sensor struct. 
@@ -151,7 +151,7 @@ static void colorDeckInit()
 
     //New RTOS task
     xTaskCreate(colorDeckTask,COLORDECK_TASK_NAME, COLORDECK_TASK_STACKSIZE, NULL, COLORDECK_TASK_PRI, NULL);
-    xTaskCreate(gpioMonitorTask, GPIOMONITOR_TASK_NAME, GPIOMONITOR_TASK_STACKSIZE, NULL, GPIOMONITOR_TASK_PRI, NULL);
+    xTaskCreate(colorDeckTickTask, COLORDECKTICK_TASK_NAME, COLORDECKTICK_TASK_STACKSIZE, NULL, COLORDECKTICK_TASK_PRI, NULL);
     xTaskCreate(fskTask, FSK_TASK_NAME, FSK_TASK_STACKSIZE, NULL, FSK_TASK_PRI, NULL);
 
 //set hardware specific parameters and GPIO
@@ -167,7 +167,6 @@ static void colorDeckInit()
 
     //TCA9548
     pinMode(TCA9548A_RESET_GPIO_PIN, OUTPUT);
-
 
     // //init the hardware:
     // //TCA9548
@@ -206,37 +205,25 @@ static void colorDeckInit()
 
 
 void fskTask(void* parameters) {
-    DEBUG_PRINT("FFT test function is running!");
     // Wait for system to start
     systemWaitStart();
     TickType_t xLastWakeTime = xTaskGetTickCount();
     //startup delay
     TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
-  
     //run all the init of the FSK instance.
     FSK_init(&fsk_instance);
 
-    //sample size of 16 would mean to process this every 16 ms
+    DEBUG_PRINT("FSK is running!");
+    /**
+     * Make sure to run when ever data is avaiable to process 
+     * The time limit is FSK_samples / sampling frequency (16 ms when first written)
+    */
     while (1) {
-        vTaskDelayUntil(&xLastWakeTime, M2T(10000));
-        q15_t input_buff[FSK_SAMPLE_BUFFER_SIZE];
-        generate_complex_sine_wave(&fsk_instance, input_buff,FSK_SAMPLE_BUFFER_SIZE, 1000);
-
-        // float32_t input_buff_float[FSK_SAMPLE_BUFFER_SIZE];
-        // arm_q15_to_float(input_buff, input_buff_float,FSK_SAMPLE_BUFFER_SIZE);
-
-        // for (uint32_t i = 0; i < FSK_SAMPLE_BUFFER_SIZE; i++)
-        // {
-        //     DEBUG_PRINT("sinvalues: %f", (double)input_buff_float[i]);
-        // }
-        // DEBUG_PRINT("\n");
-            
-        get_current_frequency(&fsk_instance, input_buff);
+        vTaskDelayUntil(&xLastWakeTime, M2T(5));
+        FSK_update(&fsk_instance);
     }
 }
-
-
 
 //Interrupt Service Routines (NOTE for now called using GPIO polling)
 /**
@@ -298,15 +285,15 @@ void processDeltaColorSensorData() {
     //we have new data on both sensor now we process the data
     processDeltaData(&tcs34725_data_struct0, &tcs34725_data_struct1);
     // DEBUG_PRINT("Processed delta DATA");
-
     // printTheData(&tcs34725_data_struct0, &tcs34725_data_struct1);
 }
 /**
- * Listener to the GPIO pins
- * This function is a replacement for an pin attached ISR on the rising edge. a to-do for later implementations
- * For now it polls the status of the pins and if the conditions are matched we set the flag.
+ * Deck tick task, runs every ms (fasted freeRTOS option)
+ * Runs time critical tasks and sets flags or performs short data read and writes.
+ * All longer function implementations should be placed in the relevant system tasks
+ * as for example an Update() function.
  */
-void gpioMonitorTask(void* arg){
+void colorDeckTickTask(void* arg){
     // Wait for system to start
     systemWaitStart();
     // the last time the function was called
@@ -316,22 +303,25 @@ void gpioMonitorTask(void* arg){
     vTaskDelay(xDelay);
 
     while(1) {
-        //TODO when done testing remove this delay
-        vTaskDelayUntil(&xLastWakeTime, M2T(10));
-        // // DEBUG_PRINT("detecting GPIO LEVELS\n");
-        // // //TODO Remove when done debugging, also check if the set conditions don't cause any issues.
-        // // uint8_t tcs34725_0_int_value = (uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN);
-        // // uint8_t tcs34725_1_int_value = (uint8_t) digitalRead(TCS34725_1_INT_GPIO_PIN);
-        // // DEBUG_PRINT("Sens0: %d, Sens1: %d \n", tcs34725_0_int_value, tcs34725_1_int_value);
-
-        // if (!isr_flag_sens0 && !((uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN))){
-        //     isr_sens0();
-        //     // DEBUG_PRINT("Sens0: int pin low detected.\n");
-        // }
-        // if (!isr_flag_sens1 && !((uint8_t) digitalRead(TCS34725_1_INT_GPIO_PIN))){
-        //     isr_sens1();
-        //     // DEBUG_PRINT("Sens1: int pin low detected.\n");
-        // }
+        vTaskDelayUntil(&xLastWakeTime, M2T());
+        /**
+         * Frequency readout for the Frequency shift keying every ms.
+        */
+        FSK_tick(&fsk_instance);
+    
+        /**
+         * Listener to the GPIO pins
+         * This function is a replacement for an pin attached ISR on the rising edge. a to-do for later implementations
+         * For now it polls the status of the pins and if the conditions are matched we set the flag.
+         */
+        if (!isr_flag_sens0 && !((uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN))){
+            isr_sens0();
+            // DEBUG_PRINT("Sens0: int pin low detected.\n");
+        }
+        if (!isr_flag_sens1 && !((uint8_t) digitalRead(TCS34725_1_INT_GPIO_PIN))){
+            isr_sens1();
+            // DEBUG_PRINT("Sens1: int pin low detected.\n");
+        }
     }
 }
 
@@ -373,7 +363,7 @@ int8_t AverageCollorClassification(uint8_t * colorDetected, cbuf_handle_t cbuf){
             }
         }
     }
-    // DEBUG_PRINT("\n");
+
     //return valid if no errors occured
     if (action_result == 0){
         return 1;
@@ -399,7 +389,8 @@ void colorDeckTask(void* arg){
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
-        vTaskDelayUntil(&xLastWakeTime, M2T(100));
+        vTaskDelayUntil(&xLastWakeTime, M2T(1000));
+        DEBUG_PRINT("HB\n");
         // //we read the data if the interrupt pins of the color sensors have been detected low.
         // readAndProcessColorSensorsIfDataAvaiable();
 

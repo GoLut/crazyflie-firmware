@@ -20,7 +20,6 @@
 
 
 
-#define FSK_ANALOGE_READ_PIN DECK_GPIO_IO2
 
 #define FSK_F0 125
 #define FSK_F1 250
@@ -41,70 +40,97 @@ enum frequency_bin{
  * - buf_len = size of output buffer,
  * - fs = sampling frequency
 */
-void generate_complex_sine_wave(FSK_instance* fsk, q15_t output[], int buf_len, int fs){
+void generate_complex_sine_wave(FSK_instance* fsk, float32_t output[], int buf_len, int fs){
     //Create input signal
     for(int i=0; i< buf_len; i+=2){
-        output[i] = 1*arm_sin_q15(2*PI*fsk->f0*(i/2)/fs);
-        output[i+1] = (q15_t)0;
+        output[i] = 0.5f + 0.5f*arm_sin_f32(2*PI*fsk->f0*(i/2)/fs);
+        output[i+1] = 0.0f;
     }
 }
 
 
-int get_current_frequency(FSK_instance* fsk, q15_t Input[]){
-    //output array
-    q15_t Output[FSK_SAMPLE_BUFFER_SIZE/2];
+/**
+ * Returns the current peak frequency found
+ * Peak locations are based on number of samples and and sampling frequency
+ * NOTE: Sets the DC part to 0
+ */
+int get_current_frequency(FSK_instance* fsk, float32_t Input[]){
+    if(fsk->isInit){
+        //output array
+        float32_t Output[FSK_SAMPLE_BUFFER_SIZE/2];
 
-    //values that we are interested in
-    q15_t maxValue = 0;
-    float32_t maxValuefloat = 0.0f;
-    uint32_t maxIndex = 0;
-    int peakFrequency = 0;
+        //values that we are interested in
+        float32_t maxValue = 0;
+        uint32_t maxIndex = 0;
+        int peakFrequency = 0;
 
-    /* Initialize the CFFT/CIFFT module, intFlag = 0, doBitReverse = 1 */
-    //arm_cfft_radix4_init_q15
-    arm_cfft_radix4_init_q15(&fsk->S, FFT_SIZE, 0, 1);
-    
-    /* Process the data through the CFFT/CIFFT module */
-    arm_cfft_radix4_q15(&fsk->S, Input);
-    
-    DEBUG_PRINT("Output:\n");
-    /* Process the data through the Complex Magniture Module for calculating the magnitude at each bin */
-    arm_cmplx_mag_q15(Input, Output, FFT_SIZE);
+        /* Initialize the CFFT/CIFFT module, intFlag = 0, doBitReverse = 1 */
+        //arm_cfft_radix4_init_q15
+        arm_cfft_radix4_init_f32(&fsk->S, FFT_SIZE, 0, 1);
+        
+        // DEBUG_PRINT("Input:\n");
+        // for (uint32_t i = 0; i < FSK_SAMPLE_BUFFER_SIZE; i++)
+        // {
+        //     DEBUG_PRINT("fftval: %f", (double)Input[i]);
+        // }
+        // DEBUG_PRINT("\n");
 
-    float32_t Output_float[FSK_SAMPLE_BUFFER_SIZE/2];
-    arm_q15_to_float(Output, Output_float,FSK_SAMPLE_BUFFER_SIZE/2);
+        /* Process the data through the CFFT/CIFFT module */
+        arm_cfft_radix4_f32(&fsk->S, Input);
+        
+        /* Process the data through the Complex Magniture Module for calculating the magnitude at each bin */
+        arm_cmplx_mag_f32(Input, Output, FFT_SIZE);
 
-    for (uint32_t i = 0; i < FSK_SAMPLE_BUFFER_SIZE/2; i++)
-    {
-        DEBUG_PRINT("fftval: %f", (double)Output_float[i]);
+        // DEBUG_PRINT("Output:\n");
+        // for (uint32_t i = 0; i < FSK_SAMPLE_BUFFER_SIZE/2; i++)
+        // {
+        //     DEBUG_PRINT("fftval: %f", (double)Output[i]);
+        // }
+        // DEBUG_PRINT("\n");
+        
+        //set the DC component to 0;
+        Output[0] = 0;
+        Output[FSK_SAMPLE_BUFFER_SIZE-1] = 0;
+
+        /* Calculates maxValue and returns corresponding value */
+        arm_max_f32(Output, FFT_SIZE, &maxValue, &maxIndex);
+
+        peakFrequency = maxIndex * FSK_SAMPLINGFREQ / FSK_SAMPLES;
+
+        // debug print
+        DEBUG_PRINT("Peak frequency %d \n", peakFrequency);
+        DEBUG_PRINT("Max Value:[%ld]:%f \n", maxIndex, (double)(2*maxValue/FSK_SAMPLES));
+
+        return peakFrequency;
     }
-    DEBUG_PRINT("\n");
-    
-    /* Calculates maxValue and returns corresponding value */
-    arm_max_q15(Output, FFT_SIZE, &maxValue, &maxIndex);
-
-
-    //convert max value to float
-    arm_q15_to_float(&maxValue, &maxValuefloat, 1);
-
-    peakFrequency = maxIndex * FSK_SAMPLINGFREQ / FSK_SAMPLES;
-
-    //debug print
-    DEBUG_PRINT("Peak frequency %d \n", peakFrequency);
-    DEBUG_PRINT("Max Value:[%ld]:%f Output=[", maxIndex, (double)(2*maxValuefloat/FSK_SAMPLES));
-    DEBUG_PRINT("]\n");
-
-    return peakFrequency;
+    return 0.0f;
 }
 
-void Read_and_save_new_frequency_if_avaiable(FSK_instance* fsk){
+/**
+ * clears the buffer content
+ * Requires the ID and a pointer to the buffer
+*/
+void FSK_buff_clear(FSK_instance* fsk, uint8_t ID){
+    if(ID == 0){
+        fsk->buff.entries_buf0 = 0;
+        fsk->buff.buff0_status = empty;
+    }
+    else if (ID == 1){
+        fsk->buff.entries_buf1 = 0;
+        fsk->buff.buff1_status = empty;
+    }
+}
+
+void Read_and_save_new_FSK_frequency_if_avaiable(FSK_instance* fsk){
     if (fsk->buff.buff0_status == full){
         get_current_frequency(fsk, fsk->buff.buff_0);
+        FSK_buff_clear(fsk, 0);
+    }else if(fsk->buff.buff1_status == full){
+        get_current_frequency(fsk, fsk->buff.buff_1);
+        FSK_buff_clear(fsk, 1);
     }
-    //todo continue here
 }
-
-void FSK_buff_add_value(FSK_buffer *buff, q15_t value, uint8_t ID){
+void FSK_buff_add_value(FSK_buffer *buff, float32_t value, uint8_t ID){
     if(ID == 0){
         buff->buff_0[buff->entries_buf0] = value;
         buff->entries_buf0++;
@@ -118,15 +144,19 @@ void FSK_buff_add_value(FSK_buffer *buff, q15_t value, uint8_t ID){
     }
 }
 
-bool FSK_buffer_put(FSK_buffer *buff, q15_t value){
+bool FSK_buffer_put(FSK_buffer *buff, float32_t value){
     //buffers are empty
     if((buff->current_buffer == 0)&&(buff->buff0_status == empty)){
         buff->entries_buf0 = 0;
+        buff->buff0_status = filling;
         FSK_buff_add_value(buff, value, 0);
+        return 1;
     }
     else if((buff->current_buffer == 1)&&(buff->buff1_status == empty)){
         buff->entries_buf1 = 0;
+        buff->buff1_status = filling;
         FSK_buff_add_value(buff, value, 1);
+        return 1;
     }
     //*Buffers are filling 
     //Buff0
@@ -136,7 +166,9 @@ bool FSK_buffer_put(FSK_buffer *buff, q15_t value){
         if (buff->entries_buf0 == FSK_SAMPLE_BUFFER_SIZE){
             buff->current_buffer = 1;
             buff->buff0_status = full;
+            return 1;
         }
+        return 1;
     }
     //Buff1
     else if((buff->current_buffer == 1)&&(buff->buff1_status == filling)){
@@ -145,7 +177,9 @@ bool FSK_buffer_put(FSK_buffer *buff, q15_t value){
         if (buff->entries_buf1 == FSK_SAMPLE_BUFFER_SIZE){
             buff->current_buffer = 0;
             buff->buff1_status = full;
+            return 1;
         }
+        return 1;
     }
     else{
         DEBUG_PRINT("FSK found an unsuported buffer filling state!");
@@ -158,16 +192,12 @@ bool FSK_buffer_put(FSK_buffer *buff, q15_t value){
 void FSK_read_ADC_value_and_put_in_buffer(FSK_instance* fsk){
     if(fsk->isInit){
         //we read the analoge values
-        uint16_t temp = analogRead(FSK_ANALOGE_READ_PIN);
-        //because we need to go to a signed format we first divide by 2
-        //meaning we lose 1 bit accuracy on the least significant bit but keep our most significant bit.
-        q15_t value = (q15_t)(temp >> 1);
-        
-        float output = 0.0f;
-        arm_q15_to_float(&value, &output, 1);
+        float32_t value = (float32_t)analogRead(FSK_ANALOGE_READ_PIN);
+        //todo, check if normalisation is nessesary.
+        //normalize between 0 an 1
+        // value = value/0xffff;
 
-        DEBUG_PRINT("analog read debug: %f\n", (double)output);
-
+        // DEBUG_PRINT("analog read debug: %f\n", (double)value);
         FSK_buffer_put(&fsk->buff, value);
     }
 }
@@ -183,14 +213,20 @@ void FSK_init(FSK_instance* fsk){
     fsk->isInit = true;
 
     //INIT the adc readout posibility
-    adcInit();   
+    adcInit();
+    DEBUG_PRINT("FSK init succesfull");
 }
 
+//needs to be called every sampling frequency (1ms) at high priority
 void FSK_tick(FSK_instance* fsk){
-    FSK_read_ADC_value_and_put_in_buffer(fsk);
+    if(fsk->isInit){
+        FSK_read_ADC_value_and_put_in_buffer(fsk);
+    }
 }
-
 
 void FSK_update(FSK_instance* fsk){
-    
+    if(fsk->isInit){
+        Read_and_save_new_FSK_frequency_if_avaiable(fsk);
+        DEBUG_PRINT("FSK buff:%d, %d, %d,%d,%d \n", fsk->buff.current_buffer, fsk->buff.buff0_status, fsk->buff.buff1_status, fsk->buff.entries_buf0, fsk->buff.entries_buf1);
+    }
 }

@@ -18,6 +18,10 @@
 //a sample every ms
 #define FSK_SAMPLINGFREQ 1000
 
+//GPIO pin used
+#define FSK_ANALOGE_READ_PIN DECK_GPIO_TX2
+
+
 typedef enum{
     empty = 0,
     filling = 1, 
@@ -30,8 +34,8 @@ typedef struct FSK_Buffers{
     FSK_buffer_status buff1_status;
     uint8_t entries_buf0;
     uint8_t entries_buf1;
-    q15_t buff_0[FSK_SAMPLE_BUFFER_SIZE];
-    q15_t buff_1[FSK_SAMPLE_BUFFER_SIZE];
+    float32_t buff_0[FSK_SAMPLE_BUFFER_SIZE];
+    float32_t buff_1[FSK_SAMPLE_BUFFER_SIZE];
     //Keeps track of the last used buffer
     uint8_t current_buffer;
 }FSK_buffer;
@@ -50,10 +54,7 @@ typedef struct FSK_instances
     uint8_t bin_number_1;
 
     //arm  cfft instance
-    arm_cfft_radix4_instance_q15 S;    /* ARM CFFT module */
-
-    uint8_t Analog_read_pin;
-
+    arm_cfft_radix4_instance_f32 S;    /* ARM CFFT module */
 
 }FSK_instance;
 
@@ -65,11 +66,8 @@ void FSK_update(FSK_instance* fsk);
 
 void FSK_read_ADC_value_and_put_in_buffer(FSK_instance* fsk);
 
-void generate_complex_sine_wave(FSK_instance* fsk, q15_t output[], int buf_len, int fs);
+void generate_complex_sine_wave(FSK_instance* fsk, float32_t output[], int buf_len, int fs);
 
-int get_current_frequency(FSK_instance* fsk, q15_t Input[]);
-
-
-
+int get_current_frequency(FSK_instance* fsk, float32_t Input[]);
 
 #endif //FSK_INSTANCE_H
