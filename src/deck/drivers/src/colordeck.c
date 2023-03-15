@@ -217,7 +217,7 @@ void fskTask(void* parameters) {
     //run all the init of the FSK instance.
     FSK_init(&fsk_instance);
 
-    DEBUG_PRINT("FSK is running!");
+    DEBUG_PRINT("FSK is running! \n");
     /**
      * Make sure to run when ever data is avaiable to process 
      * The time limit is FSK_samples / sampling frequency (16 ms when first written)
@@ -393,7 +393,7 @@ void colorDeckTask(void* arg){
 
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, M2T(COLORDECK_TASK_DELAY_UNTIL));
-        DEBUG_PRINT("HB\n");
+        // DEBUG_PRINT("HB\n");
         //we read the data if the interrupt pins of the color sensors have been detected low.
         readAndProcessColorSensorsIfDataAvaiable();
 

@@ -49,12 +49,14 @@ typedef struct FSK_instances
     //Frequencies we are looking for (aslo used to generate example sine waves.)
     uint16_t f0;
     uint16_t f1; 
-    //The bins these frequencies fall in (calc this in the INIT function)
-    uint8_t bin_number_0;
-    uint8_t bin_number_1;
 
     //arm  cfft instance
     arm_cfft_radix4_instance_f32 S;    /* ARM CFFT module */
+
+    //current data byte
+    uint8_t data_byte;
+    //keeps track howmany of the bit of the data byte have been written
+    uint8_t bit_count;
 
 }FSK_instance;
 
@@ -64,10 +66,10 @@ void FSK_tick(FSK_instance* fsk);
 
 void FSK_update(FSK_instance* fsk);
 
-void FSK_read_ADC_value_and_put_in_buffer(FSK_instance* fsk);
+// void FSK_read_ADC_value_and_put_in_buffer(FSK_instance* fsk);
 
 void generate_complex_sine_wave(FSK_instance* fsk, float32_t output[], int buf_len, int fs);
 
-int get_current_frequency(FSK_instance* fsk, float32_t Input[]);
+// uint16_t get_current_frequency(FSK_instance* fsk, float32_t Input[]);
 
 #endif //FSK_INSTANCE_H
