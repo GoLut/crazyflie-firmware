@@ -18,7 +18,11 @@
 #include "debug.h"
 
 
-
+//Circular buffer to save the recently detected frequencies
+#define RECENT_FREQUENCY_BUFFER_SIZE 5
+float32_t buffer_f[RECENT_FREQUENCY_BUFFER_SIZE]  = {0};
+circular_buf_t cbufFR;
+cbuf_handle_t cbuf_freq_recent = &cbufFR;
 
 
 #define FSK_F0 125
@@ -88,18 +92,28 @@ int get_current_frequency(FSK_instance* fsk, float32_t Input[]){
         // }
         // DEBUG_PRINT("\n");
         
-        //set the DC component to 0;
+        //set the DC component to 0 and the mirror components
         Output[0] = 0;
-        Output[FSK_SAMPLE_BUFFER_SIZE-1] = 0;
+        for (int i = (FFT_SIZE/2); i < FFT_SIZE; i++)
+        {
+            Output[i] = 0.0f;
+        }
 
         /* Calculates maxValue and returns corresponding value */
         arm_max_f32(Output, FFT_SIZE, &maxValue, &maxIndex);
+        
 
         peakFrequency = maxIndex * FSK_SAMPLINGFREQ / FSK_SAMPLES;
 
+        // DEBUG_PRINT("V: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f]\n\n",
+        // (double)(Output[0]), (double)(Output[1]), (double)(Output[2]), (double)(Output[3]),
+        // (double)(Output[4]), (double)(Output[5]), (double)(Output[6]), (double)(Output[7]),
+        // (double)(Output[8]), (double)(Output[9]), (double)(Output[10]), (double)(Output[11]),
+        // (double)(Output[12]), (double)(Output[13]), (double)(Output[14]), (double)(Output[15])
+        // );
+
         // debug print
-        DEBUG_PRINT("Peak frequency %d \n", peakFrequency);
-        DEBUG_PRINT("Max Value:[%ld]:%f \n", maxIndex, (double)(2*maxValue/FSK_SAMPLES));
+        DEBUG_PRINT("Peak frequency %d, Max Value:[%ld]:%f \n", peakFrequency, maxIndex, (double)(2*maxValue/FSK_SAMPLES));
 
         return peakFrequency;
     }
@@ -138,7 +152,7 @@ void FSK_buff_add_value(FSK_buffer *buff, float32_t value, uint8_t ID){
         buff->entries_buf0++;
     }else{
         buff->buff_1[buff->entries_buf1] = value;
-        buff->entries_buf1 = 1;
+        buff->entries_buf1++;
         buff->buff_1[buff->entries_buf1] = 0;
         buff->entries_buf1++;
     }
@@ -227,6 +241,6 @@ void FSK_tick(FSK_instance* fsk){
 void FSK_update(FSK_instance* fsk){
     if(fsk->isInit){
         Read_and_save_new_FSK_frequency_if_avaiable(fsk);
-        DEBUG_PRINT("FSK buff:%d, %d, %d,%d,%d \n", fsk->buff.current_buffer, fsk->buff.buff0_status, fsk->buff.buff1_status, fsk->buff.entries_buf0, fsk->buff.entries_buf1);
+        // DEBUG_PRINT("FSK buff:%d, %d, %d,%d,%d \n", fsk->buff.current_buffer, fsk->buff.buff0_status, fsk->buff.buff1_status, fsk->buff.entries_buf0, fsk->buff.entries_buf1);
     }
 }

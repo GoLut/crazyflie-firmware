@@ -31,14 +31,17 @@
 #define COLORDECK_TASK_STACKSIZE  (7*configMINIMAL_STACK_SIZE) 
 #define COLORDECK_TASK_NAME "COLORDECKTASK"
 #define COLORDECK_TASK_PRI 3
+#define COLORDECK_TASK_DELAY_UNTIL 1000
 
 #define COLORDECKTICK_TASK_STACKSIZE  (2*configMINIMAL_STACK_SIZE) 
-#define COLORDECKTICK_TASK_NAME "GPIOMonitor"
-#define COLORDECKTICK_TASK_PRI 5
+#define COLORDECKTICK_TASK_NAME "COLORDECKTICKTASK"
+#define COLORDECKTICK_TASK_PRI 6
+#define COLORDECKTICK_TASK_DELAY_UNTIL 1
 
 #define FSK_TASK_STACKSIZE  (5*configMINIMAL_STACK_SIZE) 
 #define FSK_TASK_NAME "FSKTASK"
 #define FSK_TASK_PRI 2
+#define FSK_TASK_TASK_DELAY_UNTIL 10
 
 //TCSColor sensor defines
 #define TCS34725_SENS0_TCA9548A_CHANNEL TCA9548A_CHANNEL7
@@ -220,7 +223,7 @@ void fskTask(void* parameters) {
      * The time limit is FSK_samples / sampling frequency (16 ms when first written)
     */
     while (1) {
-        vTaskDelayUntil(&xLastWakeTime, M2T(5));
+        vTaskDelayUntil(&xLastWakeTime, M2T(FSK_TASK_TASK_DELAY_UNTIL));
         FSK_update(&fsk_instance);
     }
 }
@@ -303,7 +306,7 @@ void colorDeckTickTask(void* arg){
     vTaskDelay(xDelay);
 
     while(1) {
-        vTaskDelayUntil(&xLastWakeTime, M2T());
+        vTaskDelayUntil(&xLastWakeTime, M2T(COLORDECKTICK_TASK_DELAY_UNTIL));
         /**
          * Frequency readout for the Frequency shift keying every ms.
         */
@@ -389,7 +392,7 @@ void colorDeckTask(void* arg){
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
-        vTaskDelayUntil(&xLastWakeTime, M2T(1000));
+        vTaskDelayUntil(&xLastWakeTime, M2T(COLORDECK_TASK_DELAY_UNTIL));
         DEBUG_PRINT("HB\n");
         // //we read the data if the interrupt pins of the color sensors have been detected low.
         // readAndProcessColorSensorsIfDataAvaiable();
