@@ -70,13 +70,13 @@ tcs34725_Color_data tcs34725_data_struct0, tcs34725_data_struct1; //the data buf
 
 //circular buffer to save the History of detected colors:
 #define HISTORIC_COLOR_BUFFER_SIZE 6
-uint8_t buffer_h[HISTORIC_COLOR_BUFFER_SIZE]  = {0};
+uint16_t buffer_h[HISTORIC_COLOR_BUFFER_SIZE]  = {0};
 circular_buf_t cbufCH;
 cbuf_handle_t cbuf_color_history = &cbufCH;
 
 //Circular buffer to save the recently detected colors:
 #define RECENT_COLOR_BUFFER_SIZE 3
-uint8_t buffer_r[RECENT_COLOR_BUFFER_SIZE]  = {0};
+uint16_t buffer_r[RECENT_COLOR_BUFFER_SIZE]  = {0};
 circular_buf_t cbufCR;
 cbuf_handle_t cbuf_color_recent = &cbufCR;
 
@@ -338,11 +338,11 @@ int8_t AverageCollorClassification(uint8_t * colorDetected, cbuf_handle_t cbuf){
     //put the classified color in the buffer at the newest spot
     int action_result = 0;
     //This overwrites the oldest element in the array.
-    circular_buf_put(cbuf, *colorDetected);
+    circular_buf_put(cbuf, (uint16_t) *colorDetected);
 
     // temp to keep the circular buffer result
-    uint8_t compareToThisColor;
-    uint8_t temp_compare;
+    uint16_t compareToThisColor;
+    uint16_t temp_compare;
 
     for (uint8_t i = 0; i < RECENT_COLOR_BUFFER_SIZE; i++)
     {
@@ -394,39 +394,40 @@ void colorDeckTask(void* arg){
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, M2T(COLORDECK_TASK_DELAY_UNTIL));
         DEBUG_PRINT("HB\n");
-        // //we read the data if the interrupt pins of the color sensors have been detected low.
-        // readAndProcessColorSensorsIfDataAvaiable();
+        //we read the data if the interrupt pins of the color sensors have been detected low.
+        readAndProcessColorSensorsIfDataAvaiable();
 
-        // if ((new_data_flag0 == true) && (new_data_flag1 == true)) {
+        if ((new_data_flag0 == true) && (new_data_flag1 == true)) {
 
-        //     //When both sensors have new data available we process the delta
-        //     processDeltaColorSensorData();
-            
-        //     //classify sensor data
-        //     KNNPoint testPoint = {.hue_polar= tcs34725_data_struct0.hsv_delta_data.h, .sat_polar = tcs34725_data_struct0.hsv_delta_data.s, .x_cart = 0, .y_cart = 0, .ID = -1};
-        //     // DEBUG_PRINT("H: %.6f, S: %.6f", (double)testPoint.hue_polar, (double)testPoint.sat_polar);
-        //     uint8_t classificationID;
-        //     int8_t tempResult = predictLabelOfPoint(&testPoint, trainingPoints, &classificationID,  3);
-        //     // if data is valid continue (0 or larger, -1 is invalid)
-        //     if (tempResult > 0){
-        //     // Average of some sorts. we are in a new color if we have received N of the same classifications
-        //         DEBUG_PRINT("We are recieving color ID: %d \n", (classificationID+1));
-        //         // DEBUG_PRINT("AverageClassificationResult: %d", AverageCollorClassification(&classificationID, cbuf_color_recent));
-        //         if (AverageCollorClassification(&classificationID, cbuf_color_recent) == 1){
-        //             //If above condition is true we check if the new color is different than the previously stored color
-        //             //We can do this because the pattern guarentees a unique color is next. 
-        //             DEBUG_PRINT("AVERAGEFOUND: %d \n", (classificationID+1));
-        //             uint8_t previous_classified_color;
-        //             circular_buf_peek(cbuf_color_history, &previous_classified_color, 0);
-        //             if (previous_classified_color != classificationID){
-        //                 circular_buf_put(cbuf_color_history, classificationID);
-        //             }
-        //         }
-        //     }
-        //     //set flags to 0 ready for the new measurement
-        //     new_data_flag0 = false;
-        //     new_data_flag1 = false;
-        // }
+            //When both sensors have new data available we process the delta
+            processDeltaColorSensorData();
+            //classify sensor data
+            KNNPoint testPoint = {.hue_polar= tcs34725_data_struct0.hsv_delta_data.h, .sat_polar = tcs34725_data_struct0.hsv_delta_data.s, .x_cart = 0, .y_cart = 0, .ID = -1};
+            // DEBUG_PRINT("H: %.6f, S: %.6f", (double)testPoint.hue_polar, (double)testPoint.sat_polar);
+            uint8_t classificationID;
+            int8_t tempResult = predictLabelOfPoint(&testPoint, trainingPoints, &classificationID,  3);
+            // if data is valid continue (0 or larger, -1 is invalid)
+            if (tempResult > 0){
+            // Average of some sorts. we are in a new color if we have received N of the same classifications
+                DEBUG_PRINT("We are recieving color ID: %d \n", (classificationID+1));
+                // DEBUG_PRINT("AverageClassificationResult: %d", AverageCollorClassification(&classificationID, cbuf_color_recent));
+                if (AverageCollorClassification(&classificationID, cbuf_color_recent) == 1){
+                    //If above condition is true we check if the new color is different than the previously stored color
+                    //We can do this because the pattern guarentees a unique color is next. 
+                    DEBUG_PRINT("AVERAGEFOUND: %d \n", (classificationID+1));
+                    //Note that we are upscaling to uint16_t because that is what the buffers accept.
+                    //And only because we are using quite small buffers we don't have to worry as much about size implications.
+                    uint16_t previous_classified_color;
+                    circular_buf_peek(cbuf_color_history, &previous_classified_color, 0);
+                    if (previous_classified_color != (uint16_t)classificationID){
+                        circular_buf_put(cbuf_color_history, (uint16_t)classificationID);
+                    }
+                }
+            }
+            //set flags to 0 ready for the new measurement
+            new_data_flag0 = false;
+            new_data_flag1 = false;
+        }
     }
 }
 

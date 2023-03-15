@@ -20,7 +20,7 @@
 
 //Circular buffer to save the recently detected frequencies
 #define RECENT_FREQUENCY_BUFFER_SIZE 5
-float32_t buffer_f[RECENT_FREQUENCY_BUFFER_SIZE]  = {0};
+uint16_t buffer_f[RECENT_FREQUENCY_BUFFER_SIZE]  = {0};
 circular_buf_t cbufFR;
 cbuf_handle_t cbuf_freq_recent = &cbufFR;
 
@@ -52,7 +52,6 @@ void generate_complex_sine_wave(FSK_instance* fsk, float32_t output[], int buf_l
     }
 }
 
-
 /**
  * Returns the current peak frequency found
  * Peak locations are based on number of samples and and sampling frequency
@@ -71,26 +70,12 @@ int get_current_frequency(FSK_instance* fsk, float32_t Input[]){
         /* Initialize the CFFT/CIFFT module, intFlag = 0, doBitReverse = 1 */
         //arm_cfft_radix4_init_q15
         arm_cfft_radix4_init_f32(&fsk->S, FFT_SIZE, 0, 1);
-        
-        // DEBUG_PRINT("Input:\n");
-        // for (uint32_t i = 0; i < FSK_SAMPLE_BUFFER_SIZE; i++)
-        // {
-        //     DEBUG_PRINT("fftval: %f", (double)Input[i]);
-        // }
-        // DEBUG_PRINT("\n");
 
         /* Process the data through the CFFT/CIFFT module */
         arm_cfft_radix4_f32(&fsk->S, Input);
         
         /* Process the data through the Complex Magniture Module for calculating the magnitude at each bin */
         arm_cmplx_mag_f32(Input, Output, FFT_SIZE);
-
-        // DEBUG_PRINT("Output:\n");
-        // for (uint32_t i = 0; i < FSK_SAMPLE_BUFFER_SIZE/2; i++)
-        // {
-        //     DEBUG_PRINT("fftval: %f", (double)Output[i]);
-        // }
-        // DEBUG_PRINT("\n");
         
         //set the DC component to 0 and the mirror components
         Output[0] = 0;
@@ -101,16 +86,9 @@ int get_current_frequency(FSK_instance* fsk, float32_t Input[]){
 
         /* Calculates maxValue and returns corresponding value */
         arm_max_f32(Output, FFT_SIZE, &maxValue, &maxIndex);
-        
 
+        /* peak frequency calulation*/
         peakFrequency = maxIndex * FSK_SAMPLINGFREQ / FSK_SAMPLES;
-
-        // DEBUG_PRINT("V: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f]\n\n",
-        // (double)(Output[0]), (double)(Output[1]), (double)(Output[2]), (double)(Output[3]),
-        // (double)(Output[4]), (double)(Output[5]), (double)(Output[6]), (double)(Output[7]),
-        // (double)(Output[8]), (double)(Output[9]), (double)(Output[10]), (double)(Output[11]),
-        // (double)(Output[12]), (double)(Output[13]), (double)(Output[14]), (double)(Output[15])
-        // );
 
         // debug print
         DEBUG_PRINT("Peak frequency %d, Max Value:[%ld]:%f \n", peakFrequency, maxIndex, (double)(2*maxValue/FSK_SAMPLES));
@@ -135,15 +113,26 @@ void FSK_buff_clear(FSK_instance* fsk, uint8_t ID){
     }
 }
 
+/**
+ * Reads from the FSK buffers if they are full with N samples.
+ * Then determines the current frequency based on the measurements
+ * finally saves the found frequency in the ciruclar buffer.
+*/
 void Read_and_save_new_FSK_frequency_if_avaiable(FSK_instance* fsk){
     if (fsk->buff.buff0_status == full){
-        get_current_frequency(fsk, fsk->buff.buff_0);
+        int found_freq = get_current_frequency(fsk, fsk->buff.buff_0);
+        circular_buf_put(cbuf_freq_recent, found_freq);
+
         FSK_buff_clear(fsk, 0);
     }else if(fsk->buff.buff1_status == full){
         get_current_frequency(fsk, fsk->buff.buff_1);
         FSK_buff_clear(fsk, 1);
     }
 }
+
+/**
+ * Adds a value to the FSK buffer depending on the current write active buffer.
+*/
 void FSK_buff_add_value(FSK_buffer *buff, float32_t value, uint8_t ID){
     if(ID == 0){
         buff->buff_0[buff->entries_buf0] = value;
@@ -158,6 +147,12 @@ void FSK_buff_add_value(FSK_buffer *buff, float32_t value, uint8_t ID){
     }
 }
 
+/**
+ * puts the found value into the FSK buffer depending on the current active write buffer
+ * - changes and adjusts the status and current active buffer indicator
+ * - Checks if the buffer is full and if so changes the buffer status
+ * NOTE a Debug error is returned once an invalid buffer state is reached
+*/
 bool FSK_buffer_put(FSK_buffer *buff, float32_t value){
     //buffers are empty
     if((buff->current_buffer == 0)&&(buff->buff0_status == empty)){
@@ -203,20 +198,25 @@ bool FSK_buffer_put(FSK_buffer *buff, float32_t value){
     return true;
 }
 
+
+/**
+ * reads the ADC values and places then in the FSK buffers
+*/
 void FSK_read_ADC_value_and_put_in_buffer(FSK_instance* fsk){
     if(fsk->isInit){
         //we read the analoge values
         float32_t value = (float32_t)analogRead(FSK_ANALOGE_READ_PIN);
-        //todo, check if normalisation is nessesary.
-        //normalize between 0 an 1
-        // value = value/0xffff;
 
         // DEBUG_PRINT("analog read debug: %f\n", (double)value);
         FSK_buffer_put(&fsk->buff, value);
     }
 }
 
+/**
+ * initializes the FSK instance and all pheripherals needed
+*/
 void FSK_init(FSK_instance* fsk){
+    //FSK struct initialization
     fsk->f0 = FSK_F0;
     fsk->f1 = FSK_F1;
     fsk->bin_number_0 = f0_bin;
@@ -224,20 +224,32 @@ void FSK_init(FSK_instance* fsk){
     fsk->buff.buff0_status = empty;
     fsk->buff.buff1_status = empty;
     fsk->buff.current_buffer = 0; //ensures we start at buffer 0
-    fsk->isInit = true;
 
     //INIT the adc readout posibility
     adcInit();
-    DEBUG_PRINT("FSK init succesfull");
+
+    //Init the circular buffer for the detected frequencies
+    cbuf_freq_recent = circular_buf_init(buffer_f, RECENT_FREQUENCY_BUFFER_SIZE, cbuf_freq_recent);
+    
+    //we are inited
+    DEBUG_PRINT("FSK init succesfull\n");
+    fsk->isInit = true;
 }
 
-//needs to be called every sampling frequency (1ms) at high priority
+
+/**
+ * Needs to be called every sampling frequency (1ms) at high(est) priority
+ * Essential to be on time else the sampling time will be off resulting in a wrong FFT.
+*/
 void FSK_tick(FSK_instance* fsk){
     if(fsk->isInit){
         FSK_read_ADC_value_and_put_in_buffer(fsk);
     }
 }
 
+/**
+ * Is called as an update low priority background task.
+*/
 void FSK_update(FSK_instance* fsk){
     if(fsk->isInit){
         Read_and_save_new_FSK_frequency_if_avaiable(fsk);
