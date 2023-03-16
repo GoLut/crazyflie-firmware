@@ -9,6 +9,18 @@
 //deck gpio parameters
 #include "deck.h"
 
+//The command id this drone will listen to
+#define DRONE_ID 0
+//the first few bits used in a data byte for identification
+#define NUM_OF_ID_BITS 2
+//number of frequency samples to recieve before we can determine a bit
+#define FSK_RECENT_FREQUENCY_BUFFER_SIZE 5
+//Analog read pin used
+#define FSK_ANALOGE_READ_PIN DECK_GPIO_TX2
+//timeout before we dicart the frequency samples saved in the generation of a new data_byte
+#define FSK_BIT_RECIEVE_TIMEOUT (FSK_SAMPLES * FSK_RECENT_FREQUENCY_BUFFER_SIZE * 2)
+
+
 //The numbers of samples used every FFT conversion
 #define FSK_SAMPLES 16 //only 16, 64, 256, 1024. are supported
 //Because the crazyflie only supports the complex fft arm functions we need to use a buffer twice the size
@@ -18,8 +30,6 @@
 //a sample every ms
 #define FSK_SAMPLINGFREQ 1000
 
-//GPIO pin used
-#define FSK_ANALOGE_READ_PIN DECK_GPIO_TX2
 
 
 typedef enum{
@@ -57,6 +67,10 @@ typedef struct FSK_instances
     uint8_t data_byte;
     //keeps track howmany of the bit of the data byte have been written
     uint8_t bit_count;
+
+    //tracks the number of ticks passed (every ms)
+    uint32_t FSK_tick_count;
+    uint32_t tick_time_since_last_bit;
 
 }FSK_instance;
 

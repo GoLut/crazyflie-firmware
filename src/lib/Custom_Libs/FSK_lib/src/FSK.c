@@ -32,14 +32,13 @@
 
 
 //Circular buffer to save the recently detected frequencies
-#define RECENT_FREQUENCY_BUFFER_SIZE 5
-uint16_t buffer_f[RECENT_FREQUENCY_BUFFER_SIZE]  = {0};
+uint16_t buffer_f[FSK_RECENT_FREQUENCY_BUFFER_SIZE]  = {0};
 circular_buf_t cbufFR;
 cbuf_handle_t cbuf_freq_recent = &cbufFR;
 
 
 #define FSK_F0 125
-#define FSK_F1 250
+#define FSK_F1 187
 
 enum frequency{
     f0 = 0,     // First FSK frequency bin
@@ -194,7 +193,7 @@ int16_t findMajority(cbuf_handle_t cbuf, uint16_t n)
  * If no majority is found a -1 is returned.
 */
 int16_t obtain_majority_frequency_from_cBuf(cbuf_handle_t cbuf){
-    return findMajority(cbuf, RECENT_FREQUENCY_BUFFER_SIZE);   
+    return findMajority(cbuf, FSK_RECENT_FREQUENCY_BUFFER_SIZE);   
 }
 
 /**
@@ -291,12 +290,15 @@ void FSK_init(FSK_instance* fsk){
     fsk->buff.current_buffer = 0; //ensures we start at buffer 0
     fsk->data_byte = 0; //sets the data buffer to 0;
     fsk->bit_count = 0; // no bit have been written to the data byte yet
+    fsk->tick_time_since_last_bit = 0;
+    fsk->FSK_tick_count = 0;
+
 
     //INIT the adc readout posibility
     adcInit();
 
     //Init the circular buffer for the detected frequencies
-    cbuf_freq_recent = circular_buf_init(buffer_f, RECENT_FREQUENCY_BUFFER_SIZE, cbuf_freq_recent);
+    cbuf_freq_recent = circular_buf_init(buffer_f, FSK_RECENT_FREQUENCY_BUFFER_SIZE, cbuf_freq_recent);
     
     //we are inited
     DEBUG_PRINT("FSK init succesfull. \n");
@@ -314,6 +316,108 @@ uint8_t modifyBit(uint8_t n, uint8_t p, uint8_t b)
 }
 
 
+/**
+ * Even parity bit checker
+ * @param b byte b (DATA + paritybit)
+ * @param even_or_odd set to: 1 = even 0 = odd parity check output \n
+ * Principle explaination: https://en.wikipedia.org/wiki/Parity_bit
+ * code example:https://www.edaboard.com/threads/implementing-parity-calculation-in-c-language.46732/ 
+*/
+uint8_t calc_parity_bit(uint8_t b, bool even_or_odd)
+{
+	uint8_t num_of_ones = 0;
+	uint8_t mask = 0x02; /* start at second bit LSB side */
+
+    while(mask != 0) /* until all bits tested */
+	{
+		if(mask & b) /* if bit is 1, increment num_of_ones */
+		{
+			num_of_ones++;
+		}
+		mask = mask << 1; /* go to next bit */
+	}
+
+    if (even_or_odd){
+        //Even parity bit uses modulo 2
+        return (num_of_ones % 2); 
+    }else{
+        //Odd parity sums 1 and then does modulo 2
+        return ((num_of_ones+1) % 2);
+    }
+}
+
+/**
+ * check if the parity bit calculated is the same as the parity bit recieved.
+ * @param data_byte The byte of data recieved
+ * @return bool true = valid, false = error detected
+*/
+bool check_parity_validity(uint8_t data_byte){
+    //calculate the parity bit from the recieved data
+    uint8_t parity_bit_calculated = calc_parity_bit(data_byte, 1);
+    //check if the parity bit calculated is the same as the parity bit recieved.
+    if((parity_bit_calculated & 0x01) == (data_byte & 0x01)){
+        return true;
+    }else{
+        return false;
+    }
+}
+
+/**
+ * Check the ID send in the data byte
+ * @return True of the ID matches the drone ID, False if it does not match
+*/
+bool parce_packet_ID(uint8_t data_byte){
+    //only keep the ID bits in the byte by shifting
+    if(DRONE_ID == (data_byte >> (8-NUM_OF_ID_BITS))){
+        return true;
+    }else{
+        return false;
+    }
+}
+
+/**
+ * isolates the command bits provided in the data byte
+ * @param data_byte, the recieved data byte. 
+ * @return command bits in byte format shifted to the right
+ * eg. in: 10-10101-0 ->  out: 000-10101
+*/
+uint8_t isolate_packet_command(uint8_t data_byte){
+    //removes the ID bits
+    uint8_t output = data_byte << NUM_OF_ID_BITS;
+    //shifts back and removes the parity bit 
+    //setting leaving only the command bytes
+    output = (output >> (NUM_OF_ID_BITS + 1));
+    return output;
+}
+
+void queue_command(uint8_t command){
+    //TODO write this actual queing section
+    DEBUG_PRINT("command recieved and queued:" BYTE_TO_BINARY_PATTERN " \n", BYTE_TO_BINARY(command));
+    //pass
+}
+
+
+/**
+ * recieves the data byte, checks the content and ID, and parces the information if required
+ * Finnaly stores the recieved command packet in a buffer to be executed later.
+*/
+void parse_data_byte(uint8_t data_byte){
+    //check validity first
+    if(!check_parity_validity(data_byte)){
+        DEBUG_PRINT("Error detected in received packet\n");
+        return; //invalid packet recieved
+    }
+    //check if the packet is intended for this drone
+    if(!parce_packet_ID(data_byte)){
+        DEBUG_PRINT("Packet recieved but not inteded for this drone\n");
+        return; //this packet was valid but not intended for this drone
+    }
+    //isulate the command from the recieved data byte
+    uint8_t command_recieved = isolate_packet_command(data_byte);
+
+    //we queue the command to be executed seperate.
+    queue_command(command_recieved);
+}
 
 /**
  * Needs to be called every sampling frequency (1ms) at high(est) priority
@@ -322,6 +426,63 @@ uint8_t modifyBit(uint8_t n, uint8_t p, uint8_t b)
 void FSK_tick(FSK_instance* fsk){
     if(fsk->isInit){
         FSK_read_ADC_value_and_put_in_buffer(fsk);
+        //increase the local tick counter by 1
+        fsk->FSK_tick_count = fsk->FSK_tick_count + 1;
+    }
+}
+
+void fsk_byte_timeout_reset(FSK_instance* fsk){
+    if (fsk->FSK_tick_count > (fsk->tick_time_since_last_bit + FSK_BIT_RECIEVE_TIMEOUT)){
+        fsk->data_byte = 0;
+        fsk->bit_count = 0;
+        //this way we are not looping this function verry fast when the time has passed
+        fsk->tick_time_since_last_bit = fsk->FSK_tick_count;
+        DEBUG_PRINT("TIMEOUT Reset \n");
+    }
+}
+
+
+void FSK_process_found_majority_frequency_and_save_byte_if_full(FSK_instance* fsk, int16_t majority_frequency){
+    //check if the found majority frequency matches one of the 2 expected frequencies
+    if(majority_frequency == fsk->f0){
+        //save the found data bit LSB first
+        fsk->data_byte = modifyBit(fsk->data_byte, fsk->bit_count, f0);
+        DEBUG_PRINT("MF0: %d at location %d \n", majority_frequency, fsk->bit_count);
+        fsk->bit_count++;
+        //save the last time we recieved a valid new bit for the timeout
+        fsk->tick_time_since_last_bit = fsk->FSK_tick_count;
+    }
+    else if(majority_frequency == fsk->f1){
+        //save the found data bit LSB first
+        fsk->data_byte = modifyBit(fsk->data_byte, fsk->bit_count, f1);
+        DEBUG_PRINT("MF1: %d at location %d \n", majority_frequency, fsk->bit_count);
+        fsk->bit_count++;
+        //save the last time we recieved a valid new bit for the timeout
+        fsk->tick_time_since_last_bit = fsk->FSK_tick_count;
+    }
+    //No match found with the correct frequency reset the fsk byte read
+    else{
+        // DEBUG_PRINT("No valid freq reset %d.\n", majority_frequency);
+        // for (int i = 0; i < 5; i++)
+        // {
+        //     uint16_t temp;
+        //     circular_buf_peek(cbuf_freq_recent, &temp, i);
+        //     DEBUG_PRINT("F Found: %d\n", temp);
+        // }
+        fsk->data_byte = 0;
+        fsk->bit_count = 0;
+    }
+}
+
+void process_byte_if_complete(FSK_instance* fsk){
+    //process if the byte is full
+    if(fsk->bit_count == 8){
+        //process byte
+        DEBUG_PRINT("byte found!:  "BYTE_TO_BINARY_PATTERN "\n", BYTE_TO_BINARY(fsk->data_byte)); 
+        parse_data_byte(fsk->data_byte);           
+        //for now we reset it again.
+        fsk->data_byte = 0;
+        fsk->bit_count = 0;
     }
 }
 
@@ -345,42 +506,18 @@ void FSK_update(FSK_instance* fsk){
         * Therefore a majority will always occur even if the window of 5x sampling does not precicly allign
         */
         if (FFT_count == 5){
+            //get the majority frequency
             majority_frequency = obtain_majority_frequency_from_cBuf(cbuf_freq_recent);
             FFT_count = 0;
 
-            //check if the found majority frequency matches one of the 2 expected frequencies
-            if(majority_frequency == fsk->f0){
-                //save the found data bit MSB first
-                fsk->data_byte = modifyBit(fsk->data_byte, 7-fsk->bit_count, f0);
-                DEBUG_PRINT("MF0: %d at location %d \n", majority_frequency, 7-fsk->bit_count);
-                fsk->bit_count++;
-            }
-            else if(majority_frequency == fsk->f1){
-                //save the found data bit MSB first
-                fsk->data_byte = modifyBit(fsk->data_byte, 7-fsk->bit_count, f1);
-                DEBUG_PRINT("MF1: %d at location %d \n", majority_frequency, 7-fsk->bit_count);
-                fsk->bit_count++;
-            }
-            //No match found with the correct frequency reset the fsk byte read
-            else{
-                DEBUG_PRINT("No valid freq reset %d.\n", majority_frequency);
-                for (int i = 0; i < 5; i++)
-                {
-                    uint16_t temp;
-                    circular_buf_peek(cbuf_freq_recent, &temp, i);
-                    DEBUG_PRINT("F Found: %d\n", temp);
-                }
-                fsk->data_byte = 0;
-                fsk->bit_count = 0;
-            }
+            //process the found majority frequency
+            FSK_process_found_majority_frequency_and_save_byte_if_full(fsk, majority_frequency);
+
             //process if the byte is full
-            if(fsk->bit_count == 8){
-                //process byte
-                DEBUG_PRINT("byte found!:  "BYTE_TO_BINARY_PATTERN "\n", BYTE_TO_BINARY(fsk->data_byte));               
-                //for now we reset it again.
-                fsk->data_byte = 0;
-                fsk->bit_count = 0;
-            }
+            process_byte_if_complete(fsk);
         }
+        //reset the byte read if we have an interrupt in the signal
+        fsk_byte_timeout_reset(fsk);
+
     }
 }
