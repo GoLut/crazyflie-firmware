@@ -39,7 +39,7 @@
 
 #define UPDATESTATE_TASK_STACKSIZE  (configMINIMAL_STACK_SIZE) 
 #define UPDATESTATE_TASK_NAME "UPDATESTATETASK"
-#define UPDATESTATE_TASK_PRI 5
+#define UPDATESTATE_TASK_PRI 4
 
 
 //TCSColor sensor defines
@@ -163,24 +163,24 @@ static void colorDeckInit()
     isr_flag_sens0 = false;
     isr_flag_sens1 = false;
 
-    //*init the hardware:
-    //TCA9548 color sensor
-    TCA_result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
-    if (TCA_result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
-    else{DEBUG_PRINT("Init of tca9548a successful\n");}
+    // //*init the hardware:
+    // //TCA9548 color sensor
+    // TCA_result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
+    // if (TCA_result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
+    // else{DEBUG_PRINT("Init of tca9548a successful\n");}
 
-    //select the correct channel for the i2c mux for initialization
-    tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
-    TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
-    if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
-    else{DEBUG_PRINT("Init of tcs34725 sens 0 successful\n");}
+    // //select the correct channel for the i2c mux for initialization
+    // tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
+    // TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
+    // if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
+    // else{DEBUG_PRINT("Init of tcs34725 sens 0 successful\n");}
     
-    // init second color sensor
-    // switching i2c channel
-    tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
-    TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
-    if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
-    else{DEBUG_PRINT("Init of tcs34725 sens 1 successful\n");}
+    // // init second color sensor
+    // // switching i2c channel
+    // tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
+    // TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
+    // if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
+    // else{DEBUG_PRINT("Init of tcs34725 sens 1 successful\n");}
 
     //init the circular buffer
     cbuf_color_history = circular_buf_init(buffer_h, HISTORIC_COLOR_BUFFER_SIZE, cbuf_color_history);
@@ -265,21 +265,21 @@ void gpioMonitorTask(void* arg){
     // the last time the function was called
     TickType_t xLastWakeTime = xTaskGetTickCount();
     //startup delay
-    const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
+    const TickType_t xDelay = 500; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
 
     while(1) {
         //check every 10 system ticks
         vTaskDelayUntil(&xLastWakeTime, M2T(10));
-        // DEBUG_PRINT("detecting GPIO LEVELS\n");        
-        if (!isr_flag_sens0 && !((uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN))){
-            isr_sens0();
-            // DEBUG_PRINT("Sens0: int pin low detected.\n");
-        }
-        if (!isr_flag_sens1 && !((uint8_t) digitalRead(TCS34725_1_INT_GPIO_PIN))){
-            isr_sens1();
-            // DEBUG_PRINT("Sens1: int pin low detected.\n");
-        }
+        // // DEBUG_PRINT("detecting GPIO LEVELS\n");        
+        // if (!isr_flag_sens0 && !((uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN))){
+        //     isr_sens0();
+        //     // DEBUG_PRINT("Sens0: int pin low detected.\n");
+        // }
+        // if (!isr_flag_sens1 && !((uint8_t) digitalRead(TCS34725_1_INT_GPIO_PIN))){
+        //     isr_sens1();
+        //     // DEBUG_PRINT("Sens1: int pin low detected.\n");
+        // }
     }
 }
 
@@ -289,7 +289,7 @@ void updateStateTask(void* arg){
     // the last time the function was called
     TickType_t xLastWakeTime = xTaskGetTickCount();
     //startup delay
-    const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
+    const TickType_t xDelay = 750; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
 
     while(1) {
@@ -356,9 +356,9 @@ void colorDeckTask(void* arg){
     const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
 
-    //we reset the device because sometimes it stays hanging in the interrupt low state.
-    reset_tcs34725_sensor(&tcs34725_data_struct0, &tcs34725_handle_sens0, &tca9548a_handle);
-    reset_tcs34725_sensor(&tcs34725_data_struct1, &tcs34725_handle_sens1, &tca9548a_handle);
+    // //we reset the device because sometimes it stays hanging in the interrupt low state.
+    // reset_tcs34725_sensor(&tcs34725_data_struct0, &tcs34725_handle_sens0, &tca9548a_handle);
+    // reset_tcs34725_sensor(&tcs34725_data_struct1, &tcs34725_handle_sens1, &tca9548a_handle);
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
@@ -366,51 +366,54 @@ void colorDeckTask(void* arg){
         //run loop every 100 ms
         vTaskDelayUntil(&xLastWakeTime, M2T(25));
 
-        //we read the sensor data if the interrupt pins of the color sensors have been detected low.
-        //flag will be set if new data is avaiable
-        readAndProcessColorSensorsIfDataAvaiable();
-        if ((new_data_flag0 == true) && (new_data_flag1 == true)) {
-            //When both sensors have new data available we process the delta
-            processDeltaColorSensorData();
+        // DEBUG_PRINT("HB");
+
+        // //we read the sensor data if the interrupt pins of the color sensors have been detected low.
+        // //flag will be set if new data is avaiable
+        // readAndProcessColorSensorsIfDataAvaiable();
+        // if ((new_data_flag0 == true) && (new_data_flag1 == true)) {
+        //     //When both sensors have new data available we process the delta
+        //     processDeltaColorSensorData();
             
-            //classify sensor data to be a specific color
-            KNNPoint testPoint = {.hue_polar= tcs34725_data_struct0.hsv_delta_data.h, .sat_polar = tcs34725_data_struct0.hsv_delta_data.s, .x_cart = 0, .y_cart = 0, .ID = -1};
-            // DEBUG_PRINT("H: %.6f, S: %.6f", (double)testPoint.hue_polar, (double)testPoint.sat_polar);
-            uint8_t classificationID;
-            int8_t predictionOutputValidity = predictLabelOfPoint(&testPoint, trainingPoints, &classificationID,  3);
+        //     //classify sensor data to be a specific color
+        //     KNNPoint testPoint = {.hue_polar= tcs34725_data_struct0.hsv_delta_data.h, .sat_polar = tcs34725_data_struct0.hsv_delta_data.s, .x_cart = 0, .y_cart = 0, .ID = -1};
+        //     // DEBUG_PRINT("H: %.6f, S: %.6f", (double)testPoint.hue_polar, (double)testPoint.sat_polar);
+        //     uint8_t classificationID;
+        //     int8_t predictionOutputValidity = predictLabelOfPoint(&testPoint, trainingPoints, &classificationID,  3);
             
-            // if prediction data is valid continue (0 or larger, -1 is invalid)
-            if (predictionOutputValidity > 0){
-                DEBUG_PRINT("We are recieving color ID: %d \n", classificationID);
-                // Average of some sorts. we are in a new color if we have received N of the same classifications
+        //     // if prediction data is valid continue (0 or larger, -1 is invalid)
+        //     if (predictionOutputValidity > 0){
+        //         DEBUG_PRINT("We are recieving color ID: %d \n", classificationID);
+        //         // Average of some sorts. we are in a new color if we have received N of the same classifications
                 
-                //If the next condition is true we check if the new color is different than the previously stored color
-                    //We can do this because the pattern guarentees a unique color is next.
-                    //This sequence is then saved in a buffer for future use.
-                if (AverageCollorClassification(&classificationID, cbuf_color_recent) == 1){
-                    DEBUG_PRINT("AVERAGEFOUND: %d \n", classificationID);
-                    uint8_t previous_classified_color;
-                    circular_buf_peek(cbuf_color_history, &previous_classified_color, 0);
-                    if (previous_classified_color != classificationID){
-                        circular_buf_put(cbuf_color_history, classificationID);
-                    }
-                }
-            }else{
-                DEBUG_PRINT("WARNING invalid classification case encountered");
-            }
-            //set flags to 0 ready for the new measurement
-            new_data_flag0 = false;
-            new_data_flag1 = false;
-        }
+        //         //If the next condition is true we check if the new color is different than the previously stored color
+        //             //We can do this because the pattern guarentees a unique color is next.
+        //             //This sequence is then saved in a buffer for future use.
+        //         if (AverageCollorClassification(&classificationID, cbuf_color_recent) == 1){
+        //             DEBUG_PRINT("AVERAGEFOUND: %d \n", classificationID);
+        //             uint8_t previous_classified_color;
+        //             circular_buf_peek(cbuf_color_history, &previous_classified_color, 0);
+        //             if (previous_classified_color != classificationID){
+        //                 circular_buf_put(cbuf_color_history, classificationID);
+        //             }
+        //         }
+        //     }else{
+        //         DEBUG_PRINT("WARNING invalid classification case encountered");
+        //     }
+        //     //set flags to 0 ready for the new measurement
+        //     new_data_flag0 = false;
+        //     new_data_flag1 = false;
+        // }
 
         /**
          * Update the particle filter in this section.
         */
         //retrieve the last found color
-        uint8_t last_classified_color;
-        circular_buf_peek(cbuf_color_history, &last_classified_color, 0);
+        uint8_t last_classified_color = 1;
+        // circular_buf_peek(cbuf_color_history, &last_classified_color, 0);
+
         //run the particle filter update function
-        DEBUG_PRINT("%lu", xTaskGetTickCount());
+        //DEBUG_PRINT("%lu", xTaskGetTickCount());
         particle_filter_update(last_classified_color, xTaskGetTickCount());
     }
 }

@@ -3,8 +3,9 @@
 
 #include <stdint.h>
 
-#define PARTICLE_FILTER_NUM_OF_PARTICLES 200
 #define UPDATE_TIME_INTERVAL_PARTICLE_POS 10 //ms
+#define PARTICLE_FILTER_NUM_OF_PARTICLES 10
+
 
 #define MAP_SIZE 10
 
@@ -46,6 +47,8 @@ typedef struct MotionModelParticles
     float v_x_, v_y_, v_z_;
     //the current position
     float x_curr, y_curr, z_curr;
+    //the accumulated position
+    float x_abs, y_abs, z_abs;
     //the amount of times the motion model has updated the motion model particle before updating all particles with this information
     uint16_t motion_model_step_counter;
 } MotionModelParticle;

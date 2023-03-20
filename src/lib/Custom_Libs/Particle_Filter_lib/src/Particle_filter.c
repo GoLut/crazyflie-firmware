@@ -1,14 +1,18 @@
+//particle filter libraries
 #include "Particle_filter.h"
+#include "gen_norm.h"
+
+//C libraries
 #include <stdbool.h>
 #include <stdlib.h>
 #include <math.h>
+//crazyflie libraries
 #include "log.h"
-#include "gen_norm.h"
+#include "debug.h"
 
 //free RTOS
 #include "FreeRTOS.h"
 #include "task.h"
-
 
 #define NUMBER_OF_COLORS 8
 
@@ -21,10 +25,10 @@
 #define PARTICLE_FILTER_MAX_MAP_SIZE 1000 //cm
 #define PARTICLE_FILTER_STARTING_Z 200//cm
 
-#define UPDATE_TIME_INTERVAL_PARTICLE_POS 10 //ms
+#define UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS 100 
 #define UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE 2000 //ms
 
-#define UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS 10 
+
 
 bool particle_filter_inited = false;
 
@@ -52,6 +56,24 @@ const uint8_t COLOR_MAP[MAP_SIZE][MAP_SIZE] ={
     {8,18,28,38,48,58,68,78,88,98},
     {9,19,29,39,49,59,69,79,89,99}
     }; 
+
+void DEBUG_PARTICLE(Particle* p){
+    DEBUG_PRINT("P: Pc: %.2f, %.2f, %.2f, Pn: %.2f, %.2f, %.2f, P: %u, C: %u\n",
+    (double)p->x_curr, (double)p->y_curr, (double)p->z_curr, 
+    (double)p->x_new, (double)p->y_new, (double)p->z_new, 
+    p->prob, p->expected_color);
+}
+
+void DEBUG_MOTION_PARTICLE(MotionModelParticle* p){
+    // DEBUG_PRINT("test\n");
+    DEBUG_PRINT("MMP: a: %.5f, %.5f, %.5f, v: %.5f, %.5f, %.5f, p: %.5f, %.5f, %.5f, pa: %.5f, %.5f, %.5f, s:%u \n",
+    (double)p->a_x, (double)p->a_y, (double)p->a_z, 
+    (double)p->v_x, (double)p->v_y, (double)p->v_z, 
+    (double)p->x_curr, (double)p->y_curr, (double)p->z_curr, 
+    (double)p->x_abs, (double)p->y_abs, (double)p->z_abs, 
+    p->motion_model_step_counter);
+}
+
 
 
 //uniform_distribution returns an INTEGER in [rangeLow, rangeHigh], inclusive.*/
@@ -154,13 +176,17 @@ void set_new_xyz_position(Particle * p1, Particle * p2){
 //itterate over all particles:
 //update a particles location to the new location (Resampling and actually moving the particle)
 void place_particles_on_new_location(){
-     Particle *p;
+    Particle *p;
+    
+    // DEBUG_PRINT("Resampling done placing particles at new pose:\n");
+
     for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++){
         //update the position
         p = &particles[i];
         p->x_curr = p->x_new;
         p->y_curr = p->y_new;
         p->z_curr = p->z_new;
+        // DEBUG_PARTICLE(p);
     }
 }
 
@@ -245,6 +271,11 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     p->v_y_ = p->v_y;
     p->v_z_ = p->v_z;
 
+    //update acumulated distance
+    p->x_abs = p->x_abs +  0.5f * (p->v_x + p->v_x_)*sampleTimeInS;
+    p->y_abs = p->y_abs +  0.5f * (p->v_y + p->v_y_)*sampleTimeInS;
+    p->z_abs = p->z_abs +  0.5f * (p->v_z + p->v_z_)*sampleTimeInS;
+
     //update the steps taken counter
     p->motion_model_step_counter++;
 }
@@ -299,6 +330,9 @@ void particle_filter_init(){
         return;
     }
     //set the motion model particle parameters to be zero initially
+    motion_model_particle.x_abs = 0;
+    motion_model_particle.y_abs = 0;
+    motion_model_particle.z_abs = 0;
     resetMotionModelParticleToZero(&motion_model_particle);
     //init the true random number generator for the noise generation in the particle filter
     init_TRNG();
@@ -321,8 +355,9 @@ void particle_filter_tick(){
         return;
     }
     // we update a single particle based on the motion data
-    perform_motion_model_step(&motion_model_particle, UPDATE_TIME_INTERVAL_PARTICLE_POS);
+    perform_motion_model_step(&motion_model_particle, ((float)UPDATE_TIME_INTERVAL_PARTICLE_POS)/1000.0f);
 }
+
 
 /* this code is split in 2 sections
 1. Resampling section based on the color identification from the sensors
@@ -330,16 +365,21 @@ void particle_filter_tick(){
 ! WARNING: to prevent Race conditions steps 1 and 2 have to be performed sequentially in the same RTOS task 
 */
 void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
-    //check if the particle filter has inited
-    if (!particle_filter_inited){
-        return;
-    }
-
+    
     //Colors 0-("NUMBER_OF_COLORS"-1) are valid colors , "NUMBER_OF_COLORS" is invalid color
     static uint8_t last_recieved_color_ID = NUMBER_OF_COLORS;
 
     //Timing parameters static initialized to 0 keep track on when a new particle update needs to happen
     static uint32_t time_since_last_resample = 0;
+    static uint32_t boot_delay = 0;
+
+    
+    //check if the particle filter has inited
+    if (!particle_filter_inited){
+        time_since_last_resample = sys_time_ms;
+        boot_delay = sys_time_ms;
+        return;
+    }
 
     //Resampling happens when:
     //      New Color data is recieved.   OR   A set time interval has passed.
@@ -362,7 +402,9 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
     /**
      * After N Motion model steps we would like to update all particles.
     */
-    if(motion_model_particle.motion_model_step_counter > UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS){
+    if((motion_model_particle.motion_model_step_counter > UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS)
+     && ((boot_delay + 8000) < sys_time_ms)) {
+        // DEBUG_MOTION_PARTICLE(&motion_model_particle);
         apply_motion_model_update_to_all_particles(&motion_model_particle);
     }
     
