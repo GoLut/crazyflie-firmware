@@ -78,6 +78,7 @@ uint16_t get_current_frequency(FSK_instance* fsk, float32_t Input[]){
         uint32_t maxIndex = 0;
         uint16_t peakFrequency = 0;
 
+        // DEBUG_PRINT("Bef FFT: %f\n", (double)Input[0]);
         /* Initialize the CFFT/CIFFT module, intFlag = 0, doBitReverse = 1 */
         //arm_cfft_radix4_init_q15
         arm_cfft_radix4_init_f32(&fsk->S, FFT_SIZE, 0, 1);
@@ -98,12 +99,22 @@ uint16_t get_current_frequency(FSK_instance* fsk, float32_t Input[]){
         /* Calculates maxValue and returns corresponding value */
         arm_max_f32(Output, FFT_SIZE, &maxValue, &maxIndex);
 
+        /*set a noise floor*/
+        //based on data (notion) a noise floor of 200 should remove the noise frequency detections:
+        if (maxValue < 200){
+            // we return a DC value as this is never the frequency we are looking for.
+            return 0;
+        }
+
         /* peak frequency calulation*/
         peakFrequency = (uint16_t)(maxIndex * FSK_SAMPLINGFREQ / FSK_SAMPLES);
 
         // debug print
-        // DEBUG_PRINT("Peak frequency %d, Max Value:[%ld]:%f \n", peakFrequency, maxIndex, (double)(2*maxValue/FSK_SAMPLES));
-
+        // DEBUG_PRINT("V: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f]\n",
+        // (double)(Output[0]), (double)(Output[1]), (double)(Output[2]), (double)(Output[3]),
+        // (double)(Output[4]), (double)(Output[5]), (double)(Output[6]), (double)(Output[7])
+        // );
+        // DEBUG_PRINT("Pf %d, Mv [%ld]:%f \n\n", peakFrequency, maxIndex, (double)maxValue);
         return peakFrequency;
     }
     return 0.0f;
@@ -437,7 +448,7 @@ void fsk_byte_timeout_reset(FSK_instance* fsk){
         fsk->bit_count = 0;
         //this way we are not looping this function verry fast when the time has passed
         fsk->tick_time_since_last_bit = fsk->FSK_tick_count;
-        DEBUG_PRINT("TIMEOUT Reset \n");
+        // DEBUG_PRINT("TIMEOUT Reset \n");
     }
 }
 
@@ -447,7 +458,7 @@ void FSK_process_found_majority_frequency_and_save_byte_if_full(FSK_instance* fs
     if(majority_frequency == fsk->f0){
         //save the found data bit LSB first
         fsk->data_byte = modifyBit(fsk->data_byte, fsk->bit_count, f0);
-        DEBUG_PRINT("MF0: %d at location %d \n", majority_frequency, fsk->bit_count);
+        // DEBUG_PRINT("MF0: %d at location %d \n", majority_frequency, fsk->bit_count);
         fsk->bit_count++;
         //save the last time we recieved a valid new bit for the timeout
         fsk->tick_time_since_last_bit = fsk->FSK_tick_count;
@@ -455,7 +466,7 @@ void FSK_process_found_majority_frequency_and_save_byte_if_full(FSK_instance* fs
     else if(majority_frequency == fsk->f1){
         //save the found data bit LSB first
         fsk->data_byte = modifyBit(fsk->data_byte, fsk->bit_count, f1);
-        DEBUG_PRINT("MF1: %d at location %d \n", majority_frequency, fsk->bit_count);
+        // DEBUG_PRINT("MF1: %d at location %d \n", majority_frequency, fsk->bit_count);
         fsk->bit_count++;
         //save the last time we recieved a valid new bit for the timeout
         fsk->tick_time_since_last_bit = fsk->FSK_tick_count;
@@ -518,6 +529,5 @@ void FSK_update(FSK_instance* fsk){
         }
         //reset the byte read if we have an interrupt in the signal
         fsk_byte_timeout_reset(fsk);
-
     }
 }

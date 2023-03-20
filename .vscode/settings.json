@@ -30,6 +30,7 @@
         "debug.h": "c",
         "deck.h": "c",
         "arm_math.h": "c",
-        "fsk.h": "c"
+        "fsk.h": "c",
+        "commander.h": "c"
     }
 }
