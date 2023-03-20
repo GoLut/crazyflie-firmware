@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <math.h>
 //crazyflie libraries
-#include "log.h"
 #include "debug.h"
 
 //free RTOS
@@ -25,7 +24,7 @@
 #define PARTICLE_FILTER_MAX_MAP_SIZE 1000 //cm
 #define PARTICLE_FILTER_STARTING_Z 200//cm
 
-#define UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS 100 
+#define UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS 200 
 #define UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE 2000 //ms
 
 
@@ -186,7 +185,7 @@ void place_particles_on_new_location(){
         p->x_curr = p->x_new;
         p->y_curr = p->y_new;
         p->z_curr = p->z_new;
-        // DEBUG_PARTICLE(p);
+        DEBUG_PARTICLE(p);
     }
 }
 
@@ -246,15 +245,15 @@ void resample_particles(){
  * */
 void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     //update acceleration data based on last log parameter avaiable
-    //log ID
-    logVarId_t id_acc_x = logGetVarId("stateEstimate", "ax");
-    logVarId_t id_acc_y = logGetVarId("stateEstimate", "ay");
-    logVarId_t id_acc_z = logGetVarId("stateEstimate", "az");
 
+    //TODO apply a rotation matrix to go from local reference frame to global reference frame
     //Get the logging data
-    a_x = logGetFloat(id_acc_x);
-    a_y = logGetFloat(id_acc_y);
-    a_z = logGetFloat(id_acc_z);
+    //TODO remove the sign here as well when done
+
+    //TODO Add calibration setup
+    a_x = -1* logGetFloat(p->id_acc_x);
+    a_y = -1* logGetFloat(p->id_acc_y);
+    a_z = -1* logGetFloat(p->id_acc_z);
 
     //velocity update t0
     p->v_x = p->v_x_ + a_x * sampleTimeInS;
@@ -266,15 +265,15 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     p->y_curr = p->y_curr +  0.5f * (p->v_y + p->v_y_)*sampleTimeInS;
     p->z_curr = p->z_curr +  0.5f * (p->v_z + p->v_z_)*sampleTimeInS;
 
-    //Update velocity t-1
-    p->v_x_ = p->v_x;
-    p->v_y_ = p->v_y;
-    p->v_z_ = p->v_z;
-
     //update acumulated distance
     p->x_abs = p->x_abs +  0.5f * (p->v_x + p->v_x_)*sampleTimeInS;
     p->y_abs = p->y_abs +  0.5f * (p->v_y + p->v_y_)*sampleTimeInS;
     p->z_abs = p->z_abs +  0.5f * (p->v_z + p->v_z_)*sampleTimeInS;
+
+    //Update velocity t-1
+    p->v_x_ = p->v_x;
+    p->v_y_ = p->v_y;
+    p->v_z_ = p->v_z;
 
     //update the steps taken counter
     p->motion_model_step_counter++;
@@ -295,6 +294,15 @@ void resetMotionModelParticleToZero(MotionModelParticle * p){
     p->y_curr = 0;
     p->z_curr = 0;
     p->motion_model_step_counter = 0;
+    
+    // log ID
+    // p->id_acc_x = logGetVarId("stateEstimate", "ax");
+    // p->id_acc_y = logGetVarId("stateEstimate", "ay");
+    // p->id_acc_z = logGetVarId("stateEstimate", "az");
+
+    p->id_acc_x = logGetVarId("acc", "x");
+    p->id_acc_y = logGetVarId("acc", "y");
+    p->id_acc_z = logGetVarId("acc", "z");
 }
 
 void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
@@ -303,7 +311,7 @@ void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
 
     // TODO optimize the standart deviation on the particle noise (0.4f);
     // Make the standart deviation number of motion model step dependent to prevent abnormally large noise on small steps
-    const float std_dev = 0.4f*UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS; 
+    const float std_dev = 0.01f; 
 
     for (uint16_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++){
         //obtain a normally distributed noise
@@ -315,6 +323,8 @@ void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
         particles[i].y_curr += mp->y_curr + noise_y;
         //TODO implement the motion model for the Z particle
         particles[i].z_curr = particles[i].z_curr; 
+        DEBUG_PARTICLE(&particles[i]);
+
     }
     vTaskSuspendAll();
         // Set the motion model particle data to zero.
@@ -367,7 +377,7 @@ void particle_filter_tick(){
 void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
     
     //Colors 0-("NUMBER_OF_COLORS"-1) are valid colors , "NUMBER_OF_COLORS" is invalid color
-    static uint8_t last_recieved_color_ID = NUMBER_OF_COLORS;
+    // static uint8_t last_recieved_color_ID = NUMBER_OF_COLORS;
 
     //Timing parameters static initialized to 0 keep track on when a new particle update needs to happen
     static uint32_t time_since_last_resample = 0;
@@ -384,28 +394,49 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
     //Resampling happens when:
     //      New Color data is recieved.   OR   A set time interval has passed.
     //              AND    recieved_color_ID != NUMBER_OF_COLORS
-    if(
-        ((last_recieved_color_ID != recieved_color_ID)
-            ||((time_since_last_resample + UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE) < sys_time_ms))
-        &&(recieved_color_ID != NUMBER_OF_COLORS)
-    ){
-        //perform the resample sequence
-        determine_expected_color_for_all_particles();
-        set_particle_probability(last_recieved_color_ID);
-        resample_particles();
+    // if(
+    //     ((last_recieved_color_ID != recieved_color_ID)
+    //         ||((time_since_last_resample + UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE) < sys_time_ms))
+    //     &&(recieved_color_ID != NUMBER_OF_COLORS)
+    // ){
+    //     //perform the resample sequence
+    //     determine_expected_color_for_all_particles();
+    //     set_particle_probability(last_recieved_color_ID);
+    //     resample_particles();
 
-        //update conditional parameters
-        time_since_last_resample = sys_time_ms;
-        last_recieved_color_ID = recieved_color_ID;
-    }
+    //     //update conditional parameters
+    //     time_since_last_resample = sys_time_ms;
+    //     last_recieved_color_ID = recieved_color_ID;
+    // }
 
     /**
      * After N Motion model steps we would like to update all particles.
     */
     if((motion_model_particle.motion_model_step_counter > UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS)
      && ((boot_delay + 8000) < sys_time_ms)) {
-        // DEBUG_MOTION_PARTICLE(&motion_model_particle);
+        DEBUG_MOTION_PARTICLE(&motion_model_particle);
         apply_motion_model_update_to_all_particles(&motion_model_particle);
     }
     
 }
+
+
+LOG_GROUP_START(CStateEstimate)
+                LOG_ADD_CORE(LOG_FLOAT, ax, &motion_model_particle.a_x)
+                LOG_ADD_CORE(LOG_FLOAT, ay, &motion_model_particle.a_y)
+                LOG_ADD_CORE(LOG_FLOAT, az, &motion_model_particle.a_z)
+
+                LOG_ADD_CORE(LOG_FLOAT, vx, &motion_model_particle.v_x)
+                LOG_ADD_CORE(LOG_FLOAT, vy, &motion_model_particle.v_y)
+                LOG_ADD_CORE(LOG_FLOAT, vz, &motion_model_particle.v_z)
+
+                LOG_ADD_CORE(LOG_FLOAT, x, &motion_model_particle.x_curr)
+                LOG_ADD_CORE(LOG_FLOAT, y, &motion_model_particle.y_curr)
+                LOG_ADD_CORE(LOG_FLOAT, z, &motion_model_particle.z_curr)
+
+                LOG_ADD_CORE(LOG_FLOAT, absx, &motion_model_particle.x_abs)
+                LOG_ADD_CORE(LOG_FLOAT, absy, &motion_model_particle.y_abs)
+                LOG_ADD_CORE(LOG_FLOAT, absz, &motion_model_particle.z_abs)
+
+
+LOG_GROUP_STOP(CStateEstimate)

@@ -3,7 +3,10 @@
 
 #include <stdint.h>
 
-#define UPDATE_TIME_INTERVAL_PARTICLE_POS 10 //ms
+//crazyflie libraries
+#include "log.h"
+
+#define UPDATE_TIME_INTERVAL_PARTICLE_POS 2 //ms
 #define PARTICLE_FILTER_NUM_OF_PARTICLES 10
 
 
@@ -51,6 +54,12 @@ typedef struct MotionModelParticles
     float x_abs, y_abs, z_abs;
     //the amount of times the motion model has updated the motion model particle before updating all particles with this information
     uint16_t motion_model_step_counter;
+    //log ID    
+    logVarId_t id_acc_x;
+    logVarId_t id_acc_y;
+    logVarId_t id_acc_z;
+
+
 } MotionModelParticle;
 
 

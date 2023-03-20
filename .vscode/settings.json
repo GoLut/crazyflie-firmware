@@ -37,7 +37,10 @@
         "stm32f4xx.h": "c",
         "tm_stm32f4_rng.h": "c",
         "gen_norm.h": "c",
-        "driver_tca9548a_basic.h": "c"
+        "driver_tca9548a_basic.h": "c",
+        "log.h": "c",
+        "task.h": "c",
+        "debug.h": "c"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

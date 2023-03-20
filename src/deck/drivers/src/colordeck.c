@@ -294,7 +294,7 @@ void updateStateTask(void* arg){
 
     while(1) {
         //Do every x mili seconds
-        vTaskDelayUntil(&xLastWakeTime, M2T(UPDATE_TIME_INTERVAL_PARTICLE_POS));
+        vTaskDelayUntil(&xLastWakeTime, M2T(2));
         particle_filter_tick();
     }
 }
@@ -366,7 +366,7 @@ void colorDeckTask(void* arg){
         //run loop every 100 ms
         vTaskDelayUntil(&xLastWakeTime, M2T(25));
 
-        // DEBUG_PRINT("HB");
+        // DEBUG_PRINT("HB\n");
 
         // //we read the sensor data if the interrupt pins of the color sensors have been detected low.
         // //flag will be set if new data is avaiable
