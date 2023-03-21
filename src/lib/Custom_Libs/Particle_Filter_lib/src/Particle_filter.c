@@ -84,6 +84,56 @@ int32_t uniform_distribution(int32_t rangeLow, int32_t rangeHigh) {
     return myRand_scaled;
 }
 
+/**
+ * @brief exponental weigther moving average filter
+ * 
+ * @param n new measurement
+ * @param alpha scaling factor
+ * @param n_1 last calculated ewma value
+ * @return float new ewma value
+ */
+float EWMA(float n, float alpha, float n_1){
+    return (alpha*n) + ((1.0f - alpha) * n-1);
+}
+
+/**
+ * @brief Call during the init, will take samples to calibrate the IMU ofset
+ * A EWMA is used to do the calibration.
+ * TODO might not be nessesary because the PID controller on the drone will attempt to set the acc to 0;
+ *      we have to test.
+ * 
+ * @param p motion model particle
+ */
+void calibrate_IMU_on_startup(MotionModelParticle* p){
+    DEBUG_PRINT("calibrating the accelorometer keep the crazyflie still");    
+    const TickType_t xDelay = 1 / portTICK_PERIOD_MS;  
+
+    while(!p->calibrated){
+
+        float x_n = logGetFloat(p->id_acc_x);
+        float y_n = logGetFloat(p->id_acc_y);
+        float z_n = logGetFloat(p->id_acc_z);
+
+        //calculate exponential weighted moving average
+        p->a_x_cali = EWMA(x_n, p->alpha, p->a_x_cali);
+        p->a_y_cali = EWMA(y_n, p->alpha, p->a_y_cali);
+        p->a_z_cali = EWMA(z_n, p->alpha, p->a_z_cali);
+
+        //increment counter we would like to take a large amount of samples
+        p->EWMA_counter ++;
+
+        //bit beun to place the delay in this seperate file but for now we will take it
+        // proper solution would be to make an interface file that calls the delay function to
+        // make it device independend
+        vTaskDelay( xDelay );   
+
+        //set calibration to true when we are done.
+        if(p->EWMA_counter >= p->EWMA_number_of_calibration_measurements){
+            p->calibrated = true;
+        }
+    }
+}
+
 //sets the initial uniform distribution of particle location
 void set_initial_uniform_particle_distribution(Particle * p){
 //generate x and y location from uniform distribution
@@ -189,6 +239,25 @@ void place_particles_on_new_location(){
     }
 }
 
+void calculate_mean_particle_location(MotionModelParticle* mp){
+    mp->x_mean = 0.0f;
+    mp->y_mean = 0.0f;
+    mp->z_mean = 0.0f;
+    
+    Particle * p;
+    for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++){
+        //update the position
+        p = &particles[i];
+        mp->x_mean += p->x_curr;
+        mp->y_mean += p->y_curr;
+        mp->z_mean += p->z_curr;
+    }
+    //calculate the average.
+    mp->x_mean = mp->x_mean/(float)PARTICLE_FILTER_NUM_OF_PARTICLES;
+    mp->y_mean = mp->y_mean/(float)PARTICLE_FILTER_NUM_OF_PARTICLES;
+    mp->z_mean = mp->z_mean/(float)PARTICLE_FILTER_NUM_OF_PARTICLES;
+}
+
 /**
  * Resample all particles acording to the new probability distribution
  * How does the resampling based on probability work:
@@ -251,14 +320,14 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     //TODO remove the sign here as well when done
 
     //TODO Add calibration setup
-    a_x = -1* logGetFloat(p->id_acc_x);
-    a_y = -1* logGetFloat(p->id_acc_y);
-    a_z = -1* logGetFloat(p->id_acc_z);
+    p->a_x = -1* logGetFloat(p->id_acc_x);
+    p->a_y = -1* logGetFloat(p->id_acc_y);
+    p->a_z = -1* logGetFloat(p->id_acc_z);
 
     //velocity update t0
-    p->v_x = p->v_x_ + a_x * sampleTimeInS;
-    p->v_y = p->v_y_ + a_y * sampleTimeInS;
-    p->v_z = p->v_z_ + a_z * sampleTimeInS;
+    p->v_x = p->v_x_ + p->a_x * sampleTimeInS;
+    p->v_y = p->v_y_ + p->a_y * sampleTimeInS;
+    p->v_z = p->v_z_ + p->a_z * sampleTimeInS;
 
     //update pose:
     p->x_curr = p->x_curr +  0.5f * (p->v_x + p->v_x_)*sampleTimeInS;
@@ -294,15 +363,6 @@ void resetMotionModelParticleToZero(MotionModelParticle * p){
     p->y_curr = 0;
     p->z_curr = 0;
     p->motion_model_step_counter = 0;
-    
-    // log ID
-    // p->id_acc_x = logGetVarId("stateEstimate", "ax");
-    // p->id_acc_y = logGetVarId("stateEstimate", "ay");
-    // p->id_acc_z = logGetVarId("stateEstimate", "az");
-
-    p->id_acc_x = logGetVarId("acc", "x");
-    p->id_acc_y = logGetVarId("acc", "y");
-    p->id_acc_z = logGetVarId("acc", "z");
 }
 
 void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
@@ -343,7 +403,26 @@ void particle_filter_init(){
     motion_model_particle.x_abs = 0;
     motion_model_particle.y_abs = 0;
     motion_model_particle.z_abs = 0;
+
+    // ACC  log ID
+    // p->id_acc_x = logGetVarId("stateEstimate", "ax");
+    // p->id_acc_y = logGetVarId("stateEstimate", "ay");
+    // p->id_acc_z = logGetVarId("stateEstimate", "az");
+    motion_model_particle.id_acc_x = logGetVarId("acc", "x");
+    motion_model_particle.id_acc_y = logGetVarId("acc", "y");
+    motion_model_particle.id_acc_z = logGetVarId("acc", "z");
+
+    //count the number of measurments already taken
+    motion_model_particle.EWMA_counter = 0;;
+    //Do N measurements from the IMU to use in the calibration
+    motion_model_particle.EWMA_number_of_calibration_measurements = 1000;
+    //set to true if imu is calibrated
+    motion_model_particle.calibrated = false;
+    //EWMA parameter; set to small and take a lot of measurments
+    motion_model_particle.alpha = 0.01;
+    //set the motion model particle parameters to be zero initially
     resetMotionModelParticleToZero(&motion_model_particle);
+    
     //init the true random number generator for the noise generation in the particle filter
     init_TRNG();
 
@@ -353,6 +432,10 @@ void particle_filter_init(){
             set_initial_uniform_particle_distribution(&particles[i]);
             set_particle_initial_probability(&particles[i]);
         }
+    
+    //calibrate the imu data
+    calibrate_IMU_on_startup(&motion_model_particle);
+
     particle_filter_inited = true;
 }
 
@@ -386,8 +469,11 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
     
     //check if the particle filter has inited
     if (!particle_filter_inited){
+        //this is here to not overload the drone systems on startup
+        // yes this was a fun bug to figure out....
         time_since_last_resample = sys_time_ms;
         boot_delay = sys_time_ms;
+
         return;
     }
 
@@ -437,6 +523,14 @@ LOG_GROUP_START(CStateEstimate)
                 LOG_ADD_CORE(LOG_FLOAT, absx, &motion_model_particle.x_abs)
                 LOG_ADD_CORE(LOG_FLOAT, absy, &motion_model_particle.y_abs)
                 LOG_ADD_CORE(LOG_FLOAT, absz, &motion_model_particle.z_abs)
+
+                LOG_ADD_CORE(LOG_FLOAT, a_x_cali, &motion_model_particle.a_x_cali)
+                LOG_ADD_CORE(LOG_FLOAT, a_y_cali, &motion_model_particle.a_y_cali)
+                LOG_ADD_CORE(LOG_FLOAT, a_z_cali, &motion_model_particle.a_z_cali)
+
+                LOG_ADD_CORE(LOG_FLOAT, x_mean, &motion_model_particle.x_mean)
+                LOG_ADD_CORE(LOG_FLOAT, y_mean, &motion_model_particle.y_mean)
+                LOG_ADD_CORE(LOG_FLOAT, z_mean, &motion_model_particle.z_mean)
 
 
 LOG_GROUP_STOP(CStateEstimate)

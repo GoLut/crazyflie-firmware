@@ -50,14 +50,37 @@ typedef struct MotionModelParticles
     float v_x_, v_y_, v_z_;
     //the current position
     float x_curr, y_curr, z_curr;
-    //the accumulated position
+    //the accumulated position of the motion model particel
     float x_abs, y_abs, z_abs;
     //the amount of times the motion model has updated the motion model particle before updating all particles with this information
     uint16_t motion_model_step_counter;
+    
     //log ID    
     logVarId_t id_acc_x;
     logVarId_t id_acc_y;
     logVarId_t id_acc_z;
+
+    //IMU calibration values:
+    float a_x_cali;
+    float a_y_cali;
+    float a_z_cali;
+
+    //count the number of measurments already taken
+    uint16_t EWMA_counter;
+    //Do N measurements from the IMU to use in the calibration
+    uint16_t EWMA_number_of_calibration_measurements;
+    //set to true if imu is calibrated
+    bool calibrated;
+    //EWMA parameter; set to small and take a lot of measurments
+    float alpha;
+
+    //average position of all particles after motion model and resampling opperations
+    float x_mean;
+    float y_mean;
+    float z_mean;
+
+
+
 
 
 } MotionModelParticle;
