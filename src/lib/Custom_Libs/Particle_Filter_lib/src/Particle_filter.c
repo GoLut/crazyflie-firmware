@@ -13,6 +13,9 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+//IMU sensors:
+#include "sensors.h"
+
 #define NUMBER_OF_COLORS 8
 
 #define MAP_CELL_SIZE 0.75
@@ -73,8 +76,6 @@ void DEBUG_MOTION_PARTICLE(MotionModelParticle* p){
     p->motion_model_step_counter);
 }
 
-
-
 //uniform_distribution returns an INTEGER in [rangeLow, rangeHigh], inclusive.*/
 //https://stackoverflow.com/questions/11641629/generating-a-uniform-distribution-of-integers-in-c
 int32_t uniform_distribution(int32_t rangeLow, int32_t rangeHigh) {
@@ -93,7 +94,7 @@ int32_t uniform_distribution(int32_t rangeLow, int32_t rangeHigh) {
  * @return float new ewma value
  */
 float EWMA(float n, float alpha, float n_1){
-    return (alpha*n) + ((1.0f - alpha) * n-1);
+    return ((alpha*n) + ((1.0f - alpha) * n_1));
 }
 
 /**
@@ -104,35 +105,40 @@ float EWMA(float n, float alpha, float n_1){
  * 
  * @param p motion model particle
  */
-void calibrate_IMU_on_startup(MotionModelParticle* p){
-    DEBUG_PRINT("calibrating the accelorometer keep the crazyflie still");    
-    const TickType_t xDelay = 1 / portTICK_PERIOD_MS;  
+void calibrate_motion_model_IMU_on_startup(){
+    // const TickType_t xDelay = 100 / portTICK_PERIOD_MS;  
 
-    while(!p->calibrated){
+    if (logGetUint(motion_model_particle.syscanfly)){
+        DEBUG_PRINT("can fly");
+        if(!motion_model_particle.calibrated){
+            float x_n = logGetFloat(motion_model_particle.id_acc_x);
+            float y_n = logGetFloat(motion_model_particle.id_acc_y);
+            float z_n = logGetFloat(motion_model_particle.id_acc_z);
 
-        float x_n = logGetFloat(p->id_acc_x);
-        float y_n = logGetFloat(p->id_acc_y);
-        float z_n = logGetFloat(p->id_acc_z);
+            //calculate exponential weighted moving average
+            motion_model_particle.a_x_cali = EWMA(x_n, motion_model_particle.alpha, motion_model_particle.a_x_cali);
+            motion_model_particle.a_y_cali = EWMA(y_n, motion_model_particle.alpha, motion_model_particle.a_y_cali);
+            motion_model_particle.a_z_cali = EWMA(z_n, motion_model_particle.alpha, motion_model_particle.a_z_cali);
 
-        //calculate exponential weighted moving average
-        p->a_x_cali = EWMA(x_n, p->alpha, p->a_x_cali);
-        p->a_y_cali = EWMA(y_n, p->alpha, p->a_y_cali);
-        p->a_z_cali = EWMA(z_n, p->alpha, p->a_z_cali);
+            //increment counter we would like to take a large amount of samples
+            motion_model_particle.EWMA_counter += 1;
 
-        //increment counter we would like to take a large amount of samples
-        p->EWMA_counter ++;
-
-        //bit beun to place the delay in this seperate file but for now we will take it
-        // proper solution would be to make an interface file that calls the delay function to
-        // make it device independend
-        vTaskDelay( xDelay );   
-
-        //set calibration to true when we are done.
-        if(p->EWMA_counter >= p->EWMA_number_of_calibration_measurements){
-            p->calibrated = true;
+            //set calibration to true when we are done.
+            if(motion_model_particle.EWMA_counter >= motion_model_particle.EWMA_number_of_calibration_measurements){
+                motion_model_particle.calibrated = true;
+            }
+            DEBUG_PRINT("NOT calibrated %d \n", motion_model_particle.EWMA_counter );
+        }
+        else{
+            DEBUG_PRINT("calibrated\n");
         }
     }
 }
+
+bool particle_filter_is_calibrated(){
+    return motion_model_particle.calibrated;
+}
+
 
 //sets the initial uniform distribution of particle location
 void set_initial_uniform_particle_distribution(Particle * p){
@@ -320,9 +326,13 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     //TODO remove the sign here as well when done
 
     //TODO Add calibration setup
-    p->a_x = -1* logGetFloat(p->id_acc_x);
-    p->a_y = -1* logGetFloat(p->id_acc_y);
-    p->a_z = -1* logGetFloat(p->id_acc_z);
+    // p->a_x = -1* (logGetFloat(p->id_acc_x) - p->a_x_cali);
+    // p->a_y = -1* (logGetFloat(p->id_acc_y) - p->a_y_cali);
+    // p->a_z = -1* (logGetFloat(p->id_acc_z) - p->a_z_cali);
+    
+    p->a_x = (logGetFloat(p->id_acc_x) - p->a_x_cali);
+    p->a_y = (logGetFloat(p->id_acc_y) - p->a_y_cali);
+    p->a_z = (logGetFloat(p->id_acc_z) - p->a_z_cali);
 
     //velocity update t0
     p->v_x = p->v_x_ + p->a_x * sampleTimeInS;
@@ -369,7 +379,7 @@ void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
     // Call by reference variables for the noise;
     float noise_x, noise_y;
 
-    // TODO optimize the standart deviation on the particle noise (0.4f);
+    // TODO optimize the standart deviation on the particle noise;
     // Make the standart deviation number of motion model step dependent to prevent abnormally large noise on small steps
     const float std_dev = 0.01f; 
 
@@ -412,6 +422,8 @@ void particle_filter_init(){
     motion_model_particle.id_acc_y = logGetVarId("acc", "y");
     motion_model_particle.id_acc_z = logGetVarId("acc", "z");
 
+    motion_model_particle.syscanfly = logGetVarId("sys", "canfly");
+
     //count the number of measurments already taken
     motion_model_particle.EWMA_counter = 0;;
     //Do N measurements from the IMU to use in the calibration
@@ -419,7 +431,7 @@ void particle_filter_init(){
     //set to true if imu is calibrated
     motion_model_particle.calibrated = false;
     //EWMA parameter; set to small and take a lot of measurments
-    motion_model_particle.alpha = 0.01;
+    motion_model_particle.alpha = 0.01f;
     //set the motion model particle parameters to be zero initially
     resetMotionModelParticleToZero(&motion_model_particle);
     
@@ -433,9 +445,6 @@ void particle_filter_init(){
             set_particle_initial_probability(&particles[i]);
         }
     
-    //calibrate the imu data
-    calibrate_IMU_on_startup(&motion_model_particle);
-
     particle_filter_inited = true;
 }
 
@@ -444,7 +453,7 @@ void particle_filter_init(){
 */
 void particle_filter_tick(){
     //check if the particle filter has inited
-    if (!particle_filter_inited){
+    if ((!particle_filter_inited) || (!motion_model_particle.calibrated)) {
         return;
     }
     // we update a single particle based on the motion data
@@ -468,7 +477,7 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
 
     
     //check if the particle filter has inited
-    if (!particle_filter_inited){
+    if ((!particle_filter_inited) || (!motion_model_particle.calibrated)){
         //this is here to not overload the drone systems on startup
         // yes this was a fun bug to figure out....
         time_since_last_resample = sys_time_ms;

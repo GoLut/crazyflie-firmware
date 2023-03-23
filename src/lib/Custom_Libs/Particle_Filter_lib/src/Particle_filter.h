@@ -59,6 +59,7 @@ typedef struct MotionModelParticles
     logVarId_t id_acc_x;
     logVarId_t id_acc_y;
     logVarId_t id_acc_z;
+    logVarId_t syscanfly;
 
     //IMU calibration values:
     float a_x_cali;
@@ -111,5 +112,8 @@ void particle_filter_tick();
 //we give it the delta time to estimate the traversed distance.
 void particle_filter_update(uint8_t last_recieved_color_ID, uint32_t sys_time_ms);
 
+void calibrate_motion_model_IMU_on_startup();
+
+bool particle_filter_is_calibrated();
 
 #endif // PARTICLE_FILTER_H_

@@ -289,12 +289,19 @@ void updateStateTask(void* arg){
     // the last time the function was called
     TickType_t xLastWakeTime = xTaskGetTickCount();
     //startup delay
-    const TickType_t xDelay = 750; // portTICK_PERIOD_MS;
+    const TickType_t xDelay = 500; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
+
+//NOT used as crazyflie has internal calibation system
+    // while(!particle_filter_is_calibrated()) {
+    // //Do every x mili seconds
+    //     vTaskDelayUntil(&xLastWakeTime, M2T(10));
+    //     calibrate_motion_model_IMU_on_startup();
+    // }
 
     while(1) {
         //Do every x mili seconds
-        vTaskDelayUntil(&xLastWakeTime, M2T(2));
+        vTaskDelayUntil(&xLastWakeTime, M2T(1));
         particle_filter_tick();
     }
 }

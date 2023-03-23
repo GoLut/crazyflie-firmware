@@ -40,7 +40,9 @@
         "driver_tca9548a_basic.h": "c",
         "log.h": "c",
         "task.h": "c",
-        "debug.h": "c"
+        "debug.h": "c",
+        "lighthouse_types.h": "c",
+        "imu_types.h": "c"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }
