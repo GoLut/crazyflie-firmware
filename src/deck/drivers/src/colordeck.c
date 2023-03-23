@@ -293,11 +293,11 @@ void updateStateTask(void* arg){
     vTaskDelay(xDelay);
 
 //NOT used as crazyflie has internal calibation system
-    // while(!particle_filter_is_calibrated()) {
-    // //Do every x mili seconds
-    //     vTaskDelayUntil(&xLastWakeTime, M2T(10));
-    //     calibrate_motion_model_IMU_on_startup();
-    // }
+    while(!particle_filter_is_calibrated()) {
+    //Do every x mili seconds
+        vTaskDelayUntil(&xLastWakeTime, M2T(5));
+        calibrate_motion_model_IMU_on_startup();
+    }
 
     while(1) {
         //Do every x mili seconds
