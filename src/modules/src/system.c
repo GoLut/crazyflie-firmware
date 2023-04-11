@@ -56,6 +56,7 @@
 #include "console.h"
 #include "usblink.h"
 #include "mem.h"
+#include "crtp_mem.h"
 #include "proximity.h"
 #include "watchdog.h"
 #include "queuemonitor.h"
@@ -91,6 +92,7 @@ static uint8_t dumpAssertInfo = 0;
 static bool isInit;
 
 static char nrf_version[16];
+static uint8_t testLogParam;
 
 STATIC_MEM_TASK_ALLOC(systemTask, SYSTEM_TASK_STACKSIZE);
 
@@ -184,7 +186,7 @@ void systemTask(void *arg)
   uart1Init(CONFIG_DEBUG_PRINT_ON_UART1_BAUDRATE);
 #endif
 
-  initUsecTimer();
+  usecTimerInit();
   i2cdevInit(I2C3_DEV);
   i2cdevInit(I2C1_DEV);
   passthroughInit();
@@ -208,6 +210,7 @@ void systemTask(void *arg)
   // This should probably be done later, but deckInit() takes a long time if this is done later.
   uartslkEnableIncoming();
 
+  memInit();
   deckInit();
   estimator = deckGetRequiredEstimator();
   stabilizerInit(estimator);
@@ -216,7 +219,7 @@ void systemTask(void *arg)
     platformSetLowInterferenceRadioMode();
   }
   soundInit();
-  memInit();
+  crtpMemInit();
 
 #ifdef PROXIMITY_ENABLED
   proximityInit();
@@ -276,6 +279,10 @@ void systemTask(void *arg)
   if (memTest() == false) {
     pass = false;
     DEBUG_PRINT("mem [FAIL]\n");
+  }
+  if (crtpMemTest() == false) {
+    pass = false;
+    DEBUG_PRINT("CRTP mem [FAIL]\n");
   }
   if (watchdogNormalStartTest() == false) {
     pass = false;
@@ -468,6 +475,12 @@ PARAM_ADD(PARAM_INT8 | PARAM_PERSISTENT, forceArm, &forceArm)
  */
 PARAM_ADD(PARAM_UINT8, assertInfo, &dumpAssertInfo)
 
+/**
+ * @brief Test util for log and param. This param sets the value of the sys.testLogParam log variable.
+ *
+ */
+PARAM_ADD(PARAM_UINT8, testLogParam, &testLogParam)
+
 PARAM_GROUP_STOP(system)
 
 /**
@@ -478,4 +491,10 @@ LOG_GROUP_START(sys)
  * @brief If zero, arming system is preventing motors to start
  */
 LOG_ADD(LOG_INT8, armed, &armed)
+
+/**
+ * @brief Test util for log and param. The value is set through the system.testLogParam parameter
+ */
+LOG_ADD(LOG_INT8, testLogParam, &testLogParam)
+
 LOG_GROUP_STOP(sys)
