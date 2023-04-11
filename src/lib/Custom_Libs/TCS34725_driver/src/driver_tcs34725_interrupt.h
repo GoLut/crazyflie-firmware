@@ -56,7 +56,7 @@ extern "C"{
 #define TCS34725_INTERRUPT_DEFAULT_RGBC                    TCS34725_BOOL_TRUE                    /**< enable rgbc */
 #define TCS34725_INTERRUPT_DEFAULT_INTEGRATION_TIME        TCS34725_INTEGRATION_TIME_700MS        /**< 50 ms integration time */
 #define TCS34725_INTERRUPT_DEFAULT_WAIT_TIME               TCS34725_WAIT_TIME_29MS             /**< 2.4 ms wait time */
-#define TCS34725_INTERRUPT_DEFAULT_GAIN                    TCS34725_GAIN_16X                     /**< 16x gain */
+#define TCS34725_INTERRUPT_DEFAULT_GAIN                    TCS34725_GAIN_60X                     /**< 16x gain */
 #define TCS34725_INTERRUPT_DEFAULT_POWER_ON                TCS34725_BOOL_TRUE                    /**< enable power on */
 
 /**

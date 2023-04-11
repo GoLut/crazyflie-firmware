@@ -27,6 +27,7 @@
         "stdint.h": "c",
         "color.h": "c",
         "knn.h": "c",
+        "driver_tcs34725.h": "c",
         "compare": "c",
         "stdlib.h": "c",
         "algorithm": "c",

@@ -229,6 +229,7 @@ void readAndProcessColorSensorsIfDataAvaiable() {
         processRawData(&tcs34725_data_struct0);
         //for processing the delta data. We need 2 new available samples and we set this parameter to indicate so.
         new_data_flag0 = true;
+        DEBUG_PRINT("s0: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
     }
 
     //check interrupt flag sens 1 and amount of samples aready taken.
@@ -239,6 +240,8 @@ void readAndProcessColorSensorsIfDataAvaiable() {
         processRawData(&tcs34725_data_struct1);
         //for processing the delta data. We need 2 new available samples and we set this parameter to indicate so.
         new_data_flag1 = true;
+        DEBUG_PRINT("s1: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
+
     }
 }
 
@@ -383,10 +386,10 @@ void colorDeckTask(void* arg){
         //     processDeltaColorSensorData();
             
         //     //classify sensor data to be a specific color
-        //     KNNPoint testPoint = {.hue_polar= tcs34725_data_struct0.hsv_delta_data.h, .sat_polar = tcs34725_data_struct0.hsv_delta_data.s, .x_cart = 0, .y_cart = 0, .ID = -1};
-        //     // DEBUG_PRINT("H: %.6f, S: %.6f", (double)testPoint.hue_polar, (double)testPoint.sat_polar);
+        //     KNNPoint pointToTest = {.hue_polar= tcs34725_data_struct0.hsv_delta_data.h, .sat_polar = tcs34725_data_struct0.hsv_delta_data.s, .x_cart = 0, .y_cart = 0, .ID = -1};
+        //     // DEBUG_PRINT("H: %.6f, S: %.6f", (double)pointToTest.hue_polar, (double)pointToTest.sat_polar);
         //     uint8_t classificationID;
-        //     int8_t predictionOutputValidity = predictLabelOfPoint(&testPoint, trainingPoints, &classificationID,  3);
+        //     int8_t predictionOutputValidity = predictLabelOfPoint(&pointToTest, trainingPoints, &classificationID,  1);
             
         //     // if prediction data is valid continue (0 or larger, -1 is invalid)
         //     if (predictionOutputValidity > 0){
