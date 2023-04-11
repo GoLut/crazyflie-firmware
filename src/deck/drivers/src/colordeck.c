@@ -363,19 +363,19 @@ void colorDeckTask(void* arg){
             processDeltaColorSensorData();
             
             //classify sensor data
-            KNNPoint testPoint = {.hue_polar= tcs34725_data_struct0.hsv_delta_data.h, .sat_polar = tcs34725_data_struct0.hsv_delta_data.s, .x_cart = 0, .y_cart = 0, .ID = -1};
+            KNNPoint pointToTest = {.hue_polar= tcs34725_data_struct0.hsv_delta_data.h, .sat_polar = tcs34725_data_struct0.hsv_delta_data.s, .x_cart = 0, .y_cart = 0, .ID = -1};
             // DEBUG_PRINT("H: %.6f, S: %.6f", (double)testPoint.hue_polar, (double)testPoint.sat_polar);
             uint8_t classificationID;
-            int8_t tempResult = predictLabelOfPoint(&testPoint, trainingPoints, &classificationID,  3);
+            int8_t tempResult = predictLabelOfPoint(&pointToTest, trainingPoints, &classificationID,  1);
             // if data is valid continue (0 or larger, -1 is invalid)
             if (tempResult > 0){
             // Average of some sorts. we are in a new color if we have received N of the same classifications
-                DEBUG_PRINT("We are recieving color ID: %d \n", (classificationID+1));
+                DEBUG_PRINT("We are recieving color ID: %d \n", KNNColorIDsUsedMapping[classificationID]);
                 // DEBUG_PRINT("AverageClassificationResult: %d", AverageCollorClassification(&classificationID, cbuf_color_recent));
                 if (AverageCollorClassification(&classificationID, cbuf_color_recent) == 1){
                     //If above condition is true we check if the new color is different than the previously stored color
                     //We can do this because the pattern guarentees a unique color is next. 
-                    DEBUG_PRINT("AVERAGEFOUND: %d \n", (classificationID+1));
+                    DEBUG_PRINT("AVERAGEFOUND: %d \n", KNNColorIDsUsedMapping[classificationID] );
                     uint8_t previous_classified_color;
                     circular_buf_peek(cbuf_color_history, &previous_classified_color, 0);
                     if (previous_classified_color != classificationID){
