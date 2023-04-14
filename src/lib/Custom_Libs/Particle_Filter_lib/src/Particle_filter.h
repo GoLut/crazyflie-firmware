@@ -7,7 +7,7 @@
 #include "log.h"
 
 #define UPDATE_TIME_INTERVAL_PARTICLE_POS 2 //ms
-#define PARTICLE_FILTER_NUM_OF_PARTICLES 20
+#define PARTICLE_FILTER_NUM_OF_PARTICLES 100
 
 
 #define MAP_SIZE 10
@@ -21,6 +21,10 @@ typedef struct Particles
     float x_curr, y_curr, z_curr;
     //new possiition after resampling
     float x_new, y_new, z_new;
+
+    //position in int_16 to reduce sending overhead
+    int32_t x_y_current;
+
     //probability of the particle based on its location
     uint16_t prob;
     //expected color based on its location

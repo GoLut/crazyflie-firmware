@@ -16,7 +16,7 @@
 //IMU sensors:
 #include "sensors.h"
 
-#define NUMBER_OF_COLORS 8
+#define NUMBER_OF_COLORS 7
 
 #define MAP_CELL_SIZE 0.75
 #define LENS_FOCAL_LENGTH 9
@@ -159,7 +159,7 @@ void set_initial_uniform_particle_distribution(Particle * p){
     p->x_curr = (float)uniform_distribution(0,PARTICLE_FILTER_MAX_MAP_SIZE);
     p->y_curr = (float)uniform_distribution(0,PARTICLE_FILTER_MAX_MAP_SIZE);
 
-    // DEBUG_PRINT("px, py, %f, %f \n", (double)p->x_curr, (double)p->y_curr);
+    DEBUG_PRINT("px, py, %f, %f \n", (double)p->x_curr, (double)p->y_curr);
     
     //set the z to be a fixed distance for now
     p->z_curr = PARTICLE_FILTER_STARTING_Z;
@@ -252,7 +252,7 @@ void set_new_xyz_position(Particle * p1, Particle * p2){
 void place_particles_on_new_location(){
     Particle *p;
     
-    DEBUG_PRINT("Resampling done placing particles at new pose:\n");
+    // DEBUG_PRINT("Resampling done placing particles at new pose:\n");
 
     for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++){
         //update the position
@@ -261,6 +261,18 @@ void place_particles_on_new_location(){
         p->y_curr = p->y_new;
         p->z_curr = p->z_new;
         // DEBUG_PARTICLE(p);
+    }
+}
+
+/*this function syncs the current particle location with the shortend 16 style particle location*/
+void sync_int16_particle_locations(){
+    Particle *p;
+    for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++){
+        //update the position
+        p = &particles[i];
+        uint32_t value = 0; 
+        p->x_y_current = (int16_t)p->x_curr;
+        p->y_curr_16 = (int16_t)p->y_curr;
     }
 }
 
@@ -300,7 +312,7 @@ void resample_particles(){
     int16_t p_counter = uniform_distribution(50,200);
     //this ways we use all the particles instead of only the first few
     uint32_t j = uniform_distribution(0,(PARTICLE_FILTER_NUM_OF_PARTICLES-1));
-    DEBUG_PRINT("starting J and P: %lu,  %d\n", j ,p_counter);
+    // DEBUG_PRINT("starting J and P: %lu,  %d\n", j ,p_counter);
 
     uint16_t overflow = 0;
 
@@ -328,8 +340,8 @@ void resample_particles(){
 
         //assign new location to the i th particle based on the current j counter.
         set_new_xyz_position(&particles[j], &particles[i]);
-        DEBUG_PRINT("j = %lu, p: %d\n", j, p_counter);
-        DEBUG_PARTICLE(&particles[i], i);
+        // DEBUG_PRINT("j = %lu, p: %d\n", j, p_counter);
+        // DEBUG_PARTICLE(&particles[i], i);
     }
     place_particles_on_new_location();
 }
@@ -536,32 +548,35 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
         return;
     }
 
-    // Resampling happens when:
-    //      (New Color data is recieved.   OR   A set time interval has passed).
-    //              AND    recieved_color_ID != NUMBER_OF_COLORS
-    if(
-        ((last_recieved_color_ID != recieved_color_ID)
-            ||((time_since_last_resample + UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE) < sys_time_ms))
-        &&(recieved_color_ID != NUMBER_OF_COLORS)
-    ){
-        //perform the resample sequence
-        determine_expected_color_for_all_particles();
-        set_particle_probability(last_recieved_color_ID);
-        resample_particles();
+    // // Resampling happens when:
+    // //      (New Color data is recieved.   OR   A set time interval has passed).
+    // //              AND    recieved_color_ID != NUMBER_OF_COLORS
+    // if(
+    //     ((last_recieved_color_ID != recieved_color_ID)
+    //         ||((time_since_last_resample + UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE) < sys_time_ms))
+    //     &&(recieved_color_ID != NUMBER_OF_COLORS)
+    // ){
+    //     //perform the resample sequence
+    //     determine_expected_color_for_all_particles();
+    //     set_particle_probability(last_recieved_color_ID);
+    //     resample_particles();
 
-        //update conditional parameters
-        time_since_last_resample = sys_time_ms;
-        last_recieved_color_ID = recieved_color_ID;
-    }
+    //     //update conditional parameters
+    //     time_since_last_resample = sys_time_ms;
+    //     last_recieved_color_ID = recieved_color_ID;
+    // }
 
     /**
      * After N Motion model steps we would like to update all particles.
     */
     if((motion_model_particle.motion_model_step_counter > UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS)
      && ((boot_delay + 8000) < sys_time_ms)) {
-        DEBUG_MOTION_PARTICLE(&motion_model_particle);
+        // DEBUG_MOTION_PARTICLE(&motion_model_particle);
         apply_motion_model_update_to_all_particles(&motion_model_particle);
     }
+
+    //sync the locations
+    sync_int16_particle_locations();
     
 }
 
@@ -591,5 +606,208 @@ LOG_GROUP_START(CStateEstimate)
                 LOG_ADD_CORE(LOG_FLOAT, y_mean, &motion_model_particle.y_mean)
                 LOG_ADD_CORE(LOG_FLOAT, z_mean, &motion_model_particle.z_mean)
 
-
 LOG_GROUP_STOP(CStateEstimate)
+
+LOG_GROUP_START(ParticleFilter)
+                LOG_ADD_CORE(LOG_INT16, x0_16, &particles[0].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y0_16, &particles[0].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x1_16, &particles[1].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y1_16, &particles[1].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x2_16, &particles[2].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y2_16, &particles[2].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x3_16, &particles[3].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y3_16, &particles[3].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x4_16, &particles[4].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y4_16, &particles[4].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x5_16, &particles[5].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y5_16, &particles[5].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x6_16, &particles[6].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y6_16, &particles[6].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x7_16, &particles[7].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y7_16, &particles[7].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x8_16, &particles[8].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y8_16, &particles[8].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x9_16, &particles[9].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y9_16, &particles[9].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x10_16, &particles[10].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y10_16, &particles[10].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x11_16, &particles[11].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y11_16, &particles[11].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x12_16, &particles[12].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y12_16, &particles[12].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x13_16, &particles[13].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y13_16, &particles[13].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x14_16, &particles[14].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y14_16, &particles[14].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x15_16, &particles[15].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y15_16, &particles[15].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x16_16, &particles[16].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y16_16, &particles[16].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x17_16, &particles[17].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y17_16, &particles[17].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x18_16, &particles[18].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y18_16, &particles[18].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x19_16, &particles[19].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y19_16, &particles[19].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x20_16, &particles[20].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y20_16, &particles[20].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x21_16, &particles[21].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y21_16, &particles[21].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x22_16, &particles[22].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y22_16, &particles[22].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x23_16, &particles[23].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y23_16, &particles[23].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x24_16, &particles[24].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y24_16, &particles[24].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x25_16, &particles[25].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y25_16, &particles[25].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x26_16, &particles[26].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y26_16, &particles[26].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x27_16, &particles[27].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y27_16, &particles[27].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x28_16, &particles[28].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y28_16, &particles[28].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x29_16, &particles[29].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y29_16, &particles[29].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x30_16, &particles[30].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y30_16, &particles[30].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x31_16, &particles[31].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y31_16, &particles[31].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x32_16, &particles[32].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y32_16, &particles[32].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x33_16, &particles[33].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y33_16, &particles[33].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x34_16, &particles[34].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y34_16, &particles[34].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x35_16, &particles[35].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y35_16, &particles[35].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x36_16, &particles[36].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y36_16, &particles[36].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x37_16, &particles[37].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y37_16, &particles[37].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x38_16, &particles[38].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y38_16, &particles[38].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x39_16, &particles[39].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y39_16, &particles[39].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x40_16, &particles[40].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y40_16, &particles[40].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x41_16, &particles[41].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y41_16, &particles[41].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x42_16, &particles[42].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y42_16, &particles[42].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x43_16, &particles[43].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y43_16, &particles[43].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x44_16, &particles[44].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y44_16, &particles[44].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x45_16, &particles[45].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y45_16, &particles[45].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x46_16, &particles[46].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y46_16, &particles[46].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x47_16, &particles[47].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y47_16, &particles[47].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x48_16, &particles[48].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y48_16, &particles[48].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x49_16, &particles[49].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y49_16, &particles[49].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x50_16, &particles[50].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y50_16, &particles[50].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x51_16, &particles[51].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y51_16, &particles[51].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x52_16, &particles[52].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y52_16, &particles[52].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x53_16, &particles[53].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y53_16, &particles[53].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x54_16, &particles[54].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y54_16, &particles[54].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x55_16, &particles[55].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y55_16, &particles[55].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x56_16, &particles[56].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y56_16, &particles[56].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x57_16, &particles[57].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y57_16, &particles[57].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x58_16, &particles[58].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y58_16, &particles[58].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x59_16, &particles[59].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y59_16, &particles[59].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x60_16, &particles[60].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y60_16, &particles[60].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x61_16, &particles[61].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y61_16, &particles[61].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x62_16, &particles[62].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y62_16, &particles[62].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x63_16, &particles[63].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y63_16, &particles[63].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x64_16, &particles[64].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y64_16, &particles[64].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x65_16, &particles[65].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y65_16, &particles[65].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x66_16, &particles[66].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y66_16, &particles[66].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x67_16, &particles[67].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y67_16, &particles[67].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x68_16, &particles[68].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y68_16, &particles[68].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x69_16, &particles[69].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y69_16, &particles[69].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x70_16, &particles[70].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y70_16, &particles[70].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x71_16, &particles[71].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y71_16, &particles[71].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x72_16, &particles[72].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y72_16, &particles[72].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x73_16, &particles[73].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y73_16, &particles[73].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x74_16, &particles[74].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y74_16, &particles[74].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x75_16, &particles[75].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y75_16, &particles[75].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x76_16, &particles[76].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y76_16, &particles[76].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x77_16, &particles[77].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y77_16, &particles[77].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x78_16, &particles[78].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y78_16, &particles[78].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x79_16, &particles[79].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y79_16, &particles[79].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x80_16, &particles[80].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y80_16, &particles[80].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x81_16, &particles[81].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y81_16, &particles[81].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x82_16, &particles[82].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y82_16, &particles[82].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x83_16, &particles[83].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y83_16, &particles[83].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x84_16, &particles[84].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y84_16, &particles[84].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x85_16, &particles[85].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y85_16, &particles[85].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x86_16, &particles[86].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y86_16, &particles[86].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x87_16, &particles[87].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y87_16, &particles[87].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x88_16, &particles[88].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y88_16, &particles[88].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x89_16, &particles[89].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y89_16, &particles[89].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x90_16, &particles[90].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y90_16, &particles[90].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x91_16, &particles[91].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y91_16, &particles[91].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x92_16, &particles[92].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y92_16, &particles[92].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x93_16, &particles[93].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y93_16, &particles[93].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x94_16, &particles[94].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y94_16, &particles[94].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x95_16, &particles[95].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y95_16, &particles[95].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x96_16, &particles[96].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y96_16, &particles[96].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x97_16, &particles[97].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y97_16, &particles[97].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x98_16, &particles[98].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y98_16, &particles[98].y_curr_16)
+                LOG_ADD_CORE(LOG_INT16, x99_16, &particles[99].x_curr_16)
+                LOG_ADD_CORE(LOG_INT16, y99_16, &particles[99].y_curr_16)
+
+LOG_GROUP_STOP(ParticleFilter)
