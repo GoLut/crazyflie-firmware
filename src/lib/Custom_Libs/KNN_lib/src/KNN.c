@@ -183,7 +183,7 @@ int8_t predictLabelOfPoint(KNNPoint *p0, TrainingPoint arr[], uint8_t* buffer, u
     // Serial.println("calc distances:");
     calcDistances(p0, arr);
 
-    //first sort the array (not as efficient but we are dealing here with a dataset array.)
+    //first sort the array (not as efficient but we are dealing here with a small dataset array.)
     // Serial.println("Bubblesort");
     bubbleSort(arr); 
 
