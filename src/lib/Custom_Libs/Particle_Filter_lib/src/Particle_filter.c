@@ -16,7 +16,6 @@
 //IMU sensors:
 #include "sensors.h"
 
-#define NUMBER_OF_COLORS 7
 
 #define MAP_CELL_SIZE 0.75
 #define LENS_FOCAL_LENGTH 9
@@ -28,7 +27,7 @@
 #define PARTICLE_FILTER_STARTING_Z 200//cm
 
 #define UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS 200 
-#define UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE 5000 //ms
+#define UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE 10000 //ms
 
 
 
@@ -60,17 +59,16 @@ Particle particles[PARTICLE_FILTER_NUM_OF_PARTICLES];
 //     }; 
 
 const uint8_t COLOR_MAP[MAP_SIZE][MAP_SIZE] ={
-    {1,1,1,1,1,1,1,1,1,1},
-    {1,1,1,1,1,1,1,1,1,1},
-    {0,0,0,0,0,0,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0}
-    }; 
+{0, 1, 3, 1, 2, 1, 5, 1},
+{2, 5, 6, 5, 0, 3, 6, 2},
+{4, 3, 1, 4, 2, 1, 0, 3},
+{6, 2, 6, 3, 6, 3, 5, 2},
+{1, 3, 4, 2, 5, 2, 1, 6},
+{0, 6, 5, 1, 0, 4, 3, 2},
+{4, 3, 0, 6, 2, 5, 0, 4},
+{0, 5, 1, 5, 3, 1, 3, 2},
+};
+
 
 void DEBUG_PARTICLE(Particle* p, int i){
     DEBUG_PRINT("P%d: Pc: %.2f, %.2f, %.2f, Pn: %.2f, %.2f, %.2f, P: %u, C: %u\n",
@@ -159,7 +157,7 @@ void set_initial_uniform_particle_distribution(Particle * p){
     p->x_curr = (float)uniform_distribution(0,PARTICLE_FILTER_MAX_MAP_SIZE);
     p->y_curr = (float)uniform_distribution(0,PARTICLE_FILTER_MAX_MAP_SIZE);
 
-    DEBUG_PRINT("px, py, %f, %f \n", (double)p->x_curr, (double)p->y_curr);
+    // DEBUG_PRINT("px, py, %f, %f \n", (double)p->x_curr, (double)p->y_curr);
     
     //set the z to be a fixed distance for now
     p->z_curr = PARTICLE_FILTER_STARTING_Z;
@@ -227,16 +225,20 @@ void determine_expected_color_for_all_particles(){
 //Update the particle probability based on the expected color and the recieved color by the color sensor
 //The probability of a particle recieving the correct color is set to a higher value.
 //The probability of a particle receiving the wrong color is set to a lower value.
-void set_particle_probability(uint16_t last_recieved_color){
+//returns the number of particles with a wrong color
+int set_particle_probability(uint16_t last_recieved_color){
+    uint16_t number_of_particles_with_wrong_color = 0;
     for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++)
     {
         if((uint16_t)particles[i].expected_color == last_recieved_color){
             particles[i].prob = PARTICLE_CORRECT_COLOR_PROBABILITY;
         }else{
             particles[i].prob = PARTICLE_WRONG_COLOR_PROBABILITY;
+            number_of_particles_with_wrong_color++;
         }
         // DEBUG_PARTICLE(&particles[i]);
     }  
+    return number_of_particles_with_wrong_color;
 }
 
 //Set a particle 2 new_location to the current_location of particle 1. (Don't move the particles yet.)
@@ -270,8 +272,8 @@ void sync_int16_particle_locations(){
     for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++){
         //update the position
         p = &particles[i];
-        uint32_t value = 0; 
-        p->x_y_current = (int16_t)p->x_curr;
+
+        p->x_curr_16 = (int16_t)p->x_curr;
         p->y_curr_16 = (int16_t)p->y_curr;
     }
 }
@@ -347,6 +349,11 @@ void resample_particles(){
 }
 
 
+float high_pass_EWMA(float x_0, float x_1, float y_1, float b){
+    return 0.5f*(2.0f-b) * (x_0-x_1) + (1.0f-b)*y_1;
+
+    }
+
 /**
  * Takes Accelerometer data and updates the motion model data.
  * This algorithm is based on the model described in the research paper (thesis)
@@ -367,34 +374,47 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     //Get the logging data
     //TODO remove the sign here as well when done
 
-    //TODO Add calibration setup
-    p->a_x = -1* (logGetFloat(p->id_acc_x) - p->a_x_cali);
-    p->a_y = -1* (logGetFloat(p->id_acc_y) - p->a_y_cali);
-    p->a_z = -1* (logGetFloat(p->id_acc_z) - p->a_z_cali);
+    // //TODO Add calibration setup
+    // p->a_x = -1* (logGetFloat(p->id_acc_x) - p->a_x_cali);
+    // p->a_y = -1* (logGetFloat(p->id_acc_y) - p->a_y_cali);
+    // p->a_z = -1* (logGetFloat(p->id_acc_z) - p->a_z_cali);
     
-    // p->a_x = (logGetFloat(p->id_acc_x) - p->a_x_cali);
-    // p->a_y = (logGetFloat(p->id_acc_y) - p->a_y_cali);
-    // p->a_z = (logGetFloat(p->id_acc_z) - p->a_z_cali);
+    //when using the kalman approximation
+    p->a_x = (logGetFloat(p->id_acc_x));
+    p->a_y = (logGetFloat(p->id_acc_y));
+    p->a_z = (logGetFloat(p->id_acc_z));
 
     //velocity update t0
-    p->v_x = p->v_x_ + p->a_x * sampleTimeInS;
-    p->v_y = p->v_y_ + p->a_y * sampleTimeInS;
-    p->v_z = p->v_z_ + p->a_z * sampleTimeInS;
+    //times gravity cause the unit of acc is in Gs -> to m/s^2 = *9.81
+    p->v_x = p->v_x_ + p->a_x * sampleTimeInS * 9.81f;
+    p->v_y = p->v_y_ + p->a_y * sampleTimeInS * 9.81f;
+    p->v_z = p->v_z_ + p->a_z * sampleTimeInS * 9.81f;
+
+    //remove DC ofset for velocity
+    p->v_x_f = high_pass_EWMA(p->v_x, p->v_x_, p->v_x_f_, p->b);
+    p->v_y_f = high_pass_EWMA(p->v_y, p->v_y_, p->v_y_f_, p->b);
+    p->v_z_f = high_pass_EWMA(p->v_z, p->v_z_, p->v_z_f_, p->b);
 
     //update pose:
-    p->x_curr = p->x_curr +  0.5f * (p->v_x + p->v_x_)*sampleTimeInS;
-    p->y_curr = p->y_curr +  0.5f * (p->v_y + p->v_y_)*sampleTimeInS;
-    p->z_curr = p->z_curr +  0.5f * (p->v_z + p->v_z_)*sampleTimeInS;
+    p->x_curr = p->x_curr +  0.5f * (p->v_x_f + p->v_x_f_)*sampleTimeInS;
+    p->y_curr = p->y_curr +  0.5f * (p->v_y_f + p->v_y_f_)*sampleTimeInS;
+    p->z_curr = p->z_curr +  0.5f * (p->v_z_f + p->v_z_f_)*sampleTimeInS;
 
     //update acumulated distance
-    p->x_abs = p->x_abs +  0.5f * (p->v_x + p->v_x_)*sampleTimeInS;
-    p->y_abs = p->y_abs +  0.5f * (p->v_y + p->v_y_)*sampleTimeInS;
-    p->z_abs = p->z_abs +  0.5f * (p->v_z + p->v_z_)*sampleTimeInS;
+    p->x_abs = p->x_abs +  0.5f * (p->v_x_f + p->v_x_f_)*sampleTimeInS;
+    p->y_abs = p->y_abs +  0.5f * (p->v_y_f + p->v_y_f_)*sampleTimeInS;
+    p->z_abs = p->z_abs +  0.5f * (p->v_z_f + p->v_z_f_)*sampleTimeInS;
 
     //Update velocity t-1
     p->v_x_ = p->v_x;
     p->v_y_ = p->v_y;
     p->v_z_ = p->v_z;
+
+    //Update filtered velocity t-1
+    p->v_x_f_ = p->v_x_f;
+    p->v_y_f_ = p->v_y_f;
+    p->v_z_f_ = p->v_z_f;
+
 
     //update the steps taken counter
     p->motion_model_step_counter++;
@@ -418,7 +438,7 @@ void resetMotionModelParticleToZero(MotionModelParticle * p){
 }
 
 void init_motion_model_particle(MotionModelParticle* p){
-    //velocity parameters
+    //velocity parameters all set to 0 initially
     p->a_x = 0;
     p->a_y = 0;
     p->a_z = 0;
@@ -428,6 +448,15 @@ void init_motion_model_particle(MotionModelParticle* p){
     p->v_x_ = 0;
     p->v_y_ = 0;
     p->v_z_ = 0;
+    p->v_x_f = 0;
+    p->v_y_f = 0;
+    p->v_z_f = 0;
+    p->v_x_f_ = 0;
+    p->v_y_f_ = 0;
+    p->v_z_f_ = 0;
+
+    //set exponential weighted highpass filter parameter:
+    p->b = 0.0015f;
 
     //set the motion model particle parameters to be zero initially
     motion_model_particle.x_abs = 0;
@@ -435,12 +464,13 @@ void init_motion_model_particle(MotionModelParticle* p){
     motion_model_particle.z_abs = 0;
 
     // ACC  log ID
-    // p->id_acc_x = logGetVarId("stateEstimate", "ax");
-    // p->id_acc_y = logGetVarId("stateEstimate", "ay");
-    // p->id_acc_z = logGetVarId("stateEstimate", "az");
-    motion_model_particle.id_acc_x = logGetVarId("acc", "x");
-    motion_model_particle.id_acc_y = logGetVarId("acc", "y");
-    motion_model_particle.id_acc_z = logGetVarId("acc", "z");
+    motion_model_particle.id_acc_x = logGetVarId("stateEstimate", "ax");
+    motion_model_particle.id_acc_y = logGetVarId("stateEstimate", "ay");
+    motion_model_particle.id_acc_z = logGetVarId("stateEstimate", "az");
+    
+    // motion_model_particle.id_acc_x = logGetVarId("acc", "x");
+    // motion_model_particle.id_acc_y = logGetVarId("acc", "y");
+    // motion_model_particle.id_acc_z = logGetVarId("acc", "z");
 
     motion_model_particle.syscanfly = logGetVarId("sys", "canfly");
 
@@ -484,6 +514,16 @@ void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
     xTaskResumeAll();    
 }
 
+void reset_probability_and_particle_distribution(){
+    //itterate over all particles and initialize the values
+    DEBUG_PRINT("Resetting: particels and probability distribution");
+    for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++)
+        {
+            set_initial_uniform_particle_distribution(&particles[i]);
+            set_particle_initial_probability(&particles[i]);
+        }
+}
+
 //Runs all the initialization functions of the particle filter.
 void particle_filter_init(){
     //check if already inited
@@ -498,11 +538,7 @@ void particle_filter_init(){
     init_TRNG();
 
     //itterate over all particles and initialize the values
-    for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++)
-        {
-            set_initial_uniform_particle_distribution(&particles[i]);
-            set_particle_initial_probability(&particles[i]);
-        }
+    reset_probability_and_particle_distribution();
     
     particle_filter_inited = true;
 }
@@ -510,13 +546,14 @@ void particle_filter_init(){
 /**
  * This section is dedicated to run every N miliseconds to update the motion model particle.
 */
-void particle_filter_tick(){
+void particle_filter_tick(int tick_time_in_ms){
     //check if the particle filter has inited
     if ((!particle_filter_inited) || (!motion_model_particle.calibrated)) {
         return;
     }
     // we update a single particle based on the motion data
-    perform_motion_model_step(&motion_model_particle, ((float)UPDATE_TIME_INTERVAL_PARTICLE_POS)/1000.0f);
+
+    perform_motion_model_step(&motion_model_particle, ((float)tick_time_in_ms)/1000.0f);
 }
 
 
@@ -529,16 +566,13 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
     
     //Colors 0-("NUMBER_OF_COLORS"-1) are valid colors , "NUMBER_OF_COLORS" is invalid color
     static uint8_t last_recieved_color_ID = NUMBER_OF_COLORS;
-    //! warning remove this when done testin
-    last_recieved_color_ID = 1;
-
 
     //Timing parameters static initialized to 0 keep track on when a new particle update needs to happen
     static uint32_t time_since_last_resample = 0;
     static uint32_t boot_delay = 0;
 
     
-    //check if the particle filter has inited
+    //check if the particle filter has inited and a calibration has happend (in case required)
     if ((!particle_filter_inited) || (!motion_model_particle.calibrated)){
         //this is here to not overload the drone systems on startup
         // yes this was a fun bug to figure out....
@@ -548,23 +582,31 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
         return;
     }
 
-    // // Resampling happens when:
-    // //      (New Color data is recieved.   OR   A set time interval has passed).
-    // //              AND    recieved_color_ID != NUMBER_OF_COLORS
-    // if(
-    //     ((last_recieved_color_ID != recieved_color_ID)
-    //         ||((time_since_last_resample + UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE) < sys_time_ms))
-    //     &&(recieved_color_ID != NUMBER_OF_COLORS)
-    // ){
-    //     //perform the resample sequence
-    //     determine_expected_color_for_all_particles();
-    //     set_particle_probability(last_recieved_color_ID);
-    //     resample_particles();
+    // Resampling happens when:
+    //      (New Color data is recieved.   OR   A set time interval has passed).
+    //              AND    recieved_color_ID != NUMBER_OF_COLORS
+    if(
+        ((last_recieved_color_ID != recieved_color_ID)
+            ||((time_since_last_resample + UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE) < sys_time_ms))
+        &&(recieved_color_ID != NUMBER_OF_COLORS)
+    ){
+        //perform the resample sequence
+        determine_expected_color_for_all_particles();
+        uint16_t particles_with_wrong_color_count =  set_particle_probability(last_recieved_color_ID);
 
-    //     //update conditional parameters
-    //     time_since_last_resample = sys_time_ms;
-    //     last_recieved_color_ID = recieved_color_ID;
-    // }
+        //if all particles have the wrong collor scatter the particles to a uniform distibution
+        // if not then perform a normal resample procedure
+        if (particles_with_wrong_color_count < PARTICLE_FILTER_NUM_OF_PARTICLES){
+            resample_particles();
+        }else{
+            reset_probability_and_particle_distribution();
+        }
+
+        //update conditional parameters
+        time_since_last_resample = sys_time_ms;
+        last_recieved_color_ID = recieved_color_ID;
+        DEBUG_PRINT("performing resample to ID: %d", recieved_color_ID);
+    }
 
     /**
      * After N Motion model steps we would like to update all particles.
@@ -575,7 +617,7 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
         apply_motion_model_update_to_all_particles(&motion_model_particle);
     }
 
-    //sync the locations
+    //sync the locations such that the visualisation interface can be updated
     sync_int16_particle_locations();
     
 }
@@ -589,6 +631,10 @@ LOG_GROUP_START(CStateEstimate)
                 LOG_ADD_CORE(LOG_FLOAT, vx, &motion_model_particle.v_x)
                 LOG_ADD_CORE(LOG_FLOAT, vy, &motion_model_particle.v_y)
                 LOG_ADD_CORE(LOG_FLOAT, vz, &motion_model_particle.v_z)
+                
+                LOG_ADD_CORE(LOG_FLOAT, vx_f, &motion_model_particle.v_x_f)
+                LOG_ADD_CORE(LOG_FLOAT, vy_f, &motion_model_particle.v_y_f)
+                LOG_ADD_CORE(LOG_FLOAT, vz_f, &motion_model_particle.v_z_f)
 
                 LOG_ADD_CORE(LOG_FLOAT, x, &motion_model_particle.x_curr)
                 LOG_ADD_CORE(LOG_FLOAT, y, &motion_model_particle.y_curr)

@@ -9,8 +9,9 @@
 #define UPDATE_TIME_INTERVAL_PARTICLE_POS 2 //ms
 #define PARTICLE_FILTER_NUM_OF_PARTICLES 100
 
+#define NUMBER_OF_COLORS 7
 
-#define MAP_SIZE 10
+#define MAP_SIZE 8
 
 //a particle is a single aporximation of the location of the crazyflie
 typedef struct Particles
@@ -23,7 +24,8 @@ typedef struct Particles
     float x_new, y_new, z_new;
 
     //position in int_16 to reduce sending overhead
-    int32_t x_y_current;
+    int16_t x_curr_16;
+    int16_t y_curr_16;
 
     //probability of the particle based on its location
     uint16_t prob;
@@ -52,6 +54,10 @@ typedef struct MotionModelParticles
     float v_x, v_y, v_z;
     //the velocity 1 time step back
     float v_x_, v_y_, v_z_;
+    //the velocity filtered
+    float v_x_f, v_y_f, v_z_f;
+    //the velocity filtered 1 time step back
+    float v_x_f_, v_y_f_, v_z_f_;
     //the current position
     float x_curr, y_curr, z_curr;
     //the accumulated position of the motion model particel
@@ -78,6 +84,9 @@ typedef struct MotionModelParticles
     bool calibrated;
     //EWMA parameter; set to small and take a lot of measurments
     float alpha;
+    
+    //highpass exponential weighted moving average filter
+    float b;
 
     //average position of all particles after motion model and resampling opperations
     float x_mean;
@@ -109,7 +118,7 @@ void particle_filter_init();
  * This section is dedicated to run every N miliseconds
  * Only run small sections of code here, leave the big code sections to the update function
 */
-void particle_filter_tick();
+void particle_filter_tick(int tick_time_in_ms);
 
 
 //this function needs to be run and will update the particle filter
