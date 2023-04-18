@@ -50,6 +50,10 @@ typedef struct MotionModelParticles
 {
     //acceleration
     float a_x, a_y, a_z;
+    //acceleration
+    float a_x_f, a_y_f, a_z_f;
+    //acceleration t-1
+    float a_x_f_, a_y_f_, a_z_f_;
     //the velocity
     float v_x, v_y, v_z;
     //the velocity 1 time step back
@@ -87,6 +91,9 @@ typedef struct MotionModelParticles
     
     //highpass exponential weighted moving average filter
     float b;
+
+    //low pas ewma
+    float a;
 
     //average position of all particles after motion model and resampling opperations
     float x_mean;

@@ -29,6 +29,8 @@
 #define UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS 200 
 #define UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE 10000 //ms
 
+#define MAX_VELOCITY_BEFORE_RESET_FILTER 0.4f
+
 
 
 bool particle_filter_inited = false;
@@ -350,10 +352,25 @@ void resample_particles(){
 
 
 float high_pass_EWMA(float x_0, float x_1, float y_1, float b){
+
+    //b-> 0 less filtering
+    //b-> 1 more filtering
     return 0.5f*(2.0f-b) * (x_0-x_1) + (1.0f-b)*y_1;
 
     }
 
+float low_pass_EWMA(float x_0, float y_1, float a){
+    //a -> 1 minimal filtering
+    //a -> 0 maximal filtering
+    return a*x_0 + (1.0f-a)*y_1;
+
+}
+
+// float high_pass_butter_1st(float x_0, float x_1, float y_1){
+//     float a = 1.001f;
+//     float b = 0.999f;
+//     return x_0/a + x_1/a + (b/a)*y_1;
+// }
 /**
  * Takes Accelerometer data and updates the motion model data.
  * This algorithm is based on the model described in the research paper (thesis)
@@ -380,9 +397,20 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     // p->a_z = -1* (logGetFloat(p->id_acc_z) - p->a_z_cali);
     
     //when using the kalman approximation
-    p->a_x = (logGetFloat(p->id_acc_x));
-    p->a_y = (logGetFloat(p->id_acc_y));
-    p->a_z = (logGetFloat(p->id_acc_z));
+    // get the acceleration in the global reference frame
+    float a_x = (logGetFloat(p->id_acc_x));
+    float a_y = (logGetFloat(p->id_acc_y));
+    float a_z = (logGetFloat(p->id_acc_z));
+
+    //get the over time offset of the accelorometer
+    p->a_x_f = low_pass_EWMA(a_x, p->a_x_f_, p->a);
+    p->a_y_f = low_pass_EWMA(a_y, p->a_y_f_, p->a);
+    p->a_z_f = low_pass_EWMA(a_z, p->a_z_f_, p->a);
+
+    //we substract the overtime offset make alpla quite small
+    p->a_x = a_x - p->a_x_f;
+    p->a_y = a_y - p->a_y_f;
+    p->a_z = a_z - p->a_z_f;
 
     //velocity update t0
     //times gravity cause the unit of acc is in Gs -> to m/s^2 = *9.81
@@ -394,6 +422,23 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     p->v_x_f = high_pass_EWMA(p->v_x, p->v_x_, p->v_x_f_, p->b);
     p->v_y_f = high_pass_EWMA(p->v_y, p->v_y_, p->v_y_f_, p->b);
     p->v_z_f = high_pass_EWMA(p->v_z, p->v_z_, p->v_z_f_, p->b);
+
+    //remove velocity drift
+    if ((p->v_x > MAX_VELOCITY_BEFORE_RESET_FILTER) ||(p->v_x < -1 * MAX_VELOCITY_BEFORE_RESET_FILTER)){
+        p->v_x = 0;
+    }
+    if ((p->v_y > MAX_VELOCITY_BEFORE_RESET_FILTER) ||(p->v_y < -1 * MAX_VELOCITY_BEFORE_RESET_FILTER)){
+        p->v_y = 0;
+        DEBUG_PRINT("resetting velocity estimate of motion model particle");
+    }
+    if ((p->v_z > MAX_VELOCITY_BEFORE_RESET_FILTER) ||(p->v_z < -1 * MAX_VELOCITY_BEFORE_RESET_FILTER)){
+        p->v_z = 0;
+    }
+
+    // //remove DC ofset for velocity
+    // p->v_x_f = high_pass_butter_1st(p->v_x, p->v_x_, p->v_x_f_);
+    // p->v_y_f = high_pass_butter_1st(p->v_y, p->v_y_, p->v_y_f_);
+    // p->v_z_f = high_pass_butter_1st(p->v_z, p->v_z_, p->v_z_f_);
 
     //update pose:
     p->x_curr = p->x_curr +  0.5f * (p->v_x_f + p->v_x_f_)*sampleTimeInS;
@@ -414,6 +459,11 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     p->v_x_f_ = p->v_x_f;
     p->v_y_f_ = p->v_y_f;
     p->v_z_f_ = p->v_z_f;
+
+    //Update filtered acceleration
+    p->a_x_f_ = p->a_x_f;
+    p->a_y_f_ = p->a_y_f;
+    p->a_z_f_ = p->a_z_f;
 
 
     //update the steps taken counter
@@ -442,6 +492,12 @@ void init_motion_model_particle(MotionModelParticle* p){
     p->a_x = 0;
     p->a_y = 0;
     p->a_z = 0;
+    p->a_x_f = 0;
+    p->a_y_f = 0;
+    p->a_z_f = 0;
+    p->a_x_f_ = 0;
+    p->a_y_f_ = 0;
+    p->a_z_f_ = 0;
     p->v_x = 0;
     p->v_y = 0;
     p->v_z = 0;
@@ -456,7 +512,10 @@ void init_motion_model_particle(MotionModelParticle* p){
     p->v_z_f_ = 0;
 
     //set exponential weighted highpass filter parameter:
-    p->b = 0.0015f;
+    // p->b = 0.0015f;
+    p->b = 0.003f;
+    p->a = 0.001f;
+
 
     //set the motion model particle parameters to be zero initially
     motion_model_particle.x_abs = 0;
