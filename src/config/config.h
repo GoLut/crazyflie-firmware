@@ -63,9 +63,9 @@
 
 
 // Task priorities. Higher number higher priority
-#define PASSTHROUGH_TASK_PRI    5
-#define STABILIZER_TASK_PRI     5
-#define SENSORS_TASK_PRI        4
+#define PASSTHROUGH_TASK_PRI    6
+#define STABILIZER_TASK_PRI     6
+#define SENSORS_TASK_PRI        5
 #define ADC_TASK_PRI            3
 #define FLOW_TASK_PRI           3
 #define MULTIRANGER_TASK_PRI    3
