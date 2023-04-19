@@ -25,13 +25,11 @@
 // Circular Buffer
 #include "circular_buffer.h"
 
+//FSK
+#include "fsk.h"
+
 //particle filter
 #include "Particle_filter.h"
-
-//FSK
-#include "FSK.h"
-
-
 
 
 // RTOS new TASKS
@@ -261,7 +259,7 @@ void readAndProcessColorSensorsIfDataAvaiable() {
         processRawData(&tcs34725_data_struct0);
         //for processing the delta data. We need 2 new available samples and we set this parameter to indicate so.
         new_data_flag0 = true;
-        DEBUG_PRINT("s0: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
+        // DEBUG_PRINT("s0: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
     }
 
     //check interrupt flag sens 1 and amount of samples aready taken.
@@ -272,7 +270,7 @@ void readAndProcessColorSensorsIfDataAvaiable() {
         processRawData(&tcs34725_data_struct1);
         //for processing the delta data. We need 2 new available samples and we set this parameter to indicate so.
         new_data_flag1 = true;
-        DEBUG_PRINT("s1: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
+        // DEBUG_PRINT("s1: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
 
     }
 }
@@ -439,21 +437,21 @@ void colorDeckTask(void* arg){
             
             // if prediction data is valid continue (0 or larger, -1 is invalid)
             if (predictionOutputValidity > 0){
-                DEBUG_PRINT("We are recieving color ID: %d \n", KNNColorIDsUsedMapping[classificationID]);
+                // DEBUG_PRINT("We are recieving color ID: %d \n", KNNColorIDsUsedMapping[classificationID]);
 
                 // Fill a buffer we are in a new color if we have received N of the same classifications.
                 if (AverageCollorClassification(&classificationID, cbuf_color_recent) == 1){
                     //If the above condition is true we check if the new color is different than the previously stored color
                     //We can do this because the pattern guarentees a unique color is next.
                     //This sequence is then saved in a buffer for future use.
-                    DEBUG_PRINT("AVERAGEFOUND: %d \n", KNNColorIDsUsedMapping[classificationID]);
+                    // DEBUG_PRINT("AVERAGEFOUND: %d \n", KNNColorIDsUsedMapping[classificationID]);
 
                     if (previous_classified_color != classificationID){
                         previous_classified_color = classificationID;
                     }
                 }
             }else{
-                DEBUG_PRINT("WARNING invalid classification case encountered");
+                // DEBUG_PRINT("WARNING invalid classification case encountered");
             }
             //set flags to 0 ready for the new measurement
             new_data_flag0 = false;

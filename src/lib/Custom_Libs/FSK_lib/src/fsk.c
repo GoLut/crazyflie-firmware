@@ -1,7 +1,7 @@
 //made with inspiration from: 
 //https://stm32f4-discovery.net/2014/10/stm32f4-fft-example/
 
-#include "FSK.h"
+#include "fsk.h"
 
 //FSK:
 #include "arm_math.h"
@@ -17,6 +17,9 @@
 //Crazyflie
 #include "debug.h"
 
+//logging:
+#include "log.h"
+
 //to print individual bits:
 //source: https://stackoverflow.com/questions/111928/is-there-a-printf-converter-to-print-in-binary-format
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
@@ -31,10 +34,18 @@
   ((byte) & 0x01 ? '1' : '0') 
 
 
+
+typedef struct Fsk_loggers{
+    float32_t read_value;
+}Fsk_logger;
+
+
 //Circular buffer to save the recently detected frequencies
 uint16_t buffer_f[FSK_RECENT_FREQUENCY_BUFFER_SIZE]  = {0};
 circular_buf_t cbufFR;
 cbuf_handle_t cbuf_freq_recent = &cbufFR;
+
+Fsk_logger fsk_log;
 
 
 #define FSK_F0 125
@@ -44,7 +55,6 @@ enum frequency{
     f0 = 0,     // First FSK frequency bin
     f1 = 1      // Second FSK frequency bin
 };
-
 
 /**
  * generates a complex sine function: X {R0, C0, R1, C1 ... Rn-1, Cn-1}
@@ -67,6 +77,7 @@ void generate_complex_sine_wave(FSK_instance* fsk, float32_t output[], int buf_l
  * Returns the current peak frequency found
  * Peak locations are based on number of samples and and sampling frequency
  * NOTE: Sets the DC part to 0
+ * Removes Noise floor
  */
 uint16_t get_current_frequency(FSK_instance* fsk, float32_t Input[]){
     if(fsk->isInit){
@@ -101,15 +112,15 @@ uint16_t get_current_frequency(FSK_instance* fsk, float32_t Input[]){
 
         /*set a noise floor*/
         //based on data (notion) a noise floor of 200 should remove the noise frequency detections:
-        if (maxValue < 200){
-            // we return a DC value as this is never the frequency we are looking for.
-            return 0;
-        }
+        // if (maxValue < 200){
+        //     // we return a DC value as this is never the frequency we are looking for.
+        //     return 0;
+        // }
 
         /* peak frequency calulation*/
         peakFrequency = (uint16_t)(maxIndex * FSK_SAMPLINGFREQ / FSK_SAMPLES);
 
-        // debug print
+        // // // debug print
         // DEBUG_PRINT("V: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f]\n",
         // (double)(Output[0]), (double)(Output[1]), (double)(Output[2]), (double)(Output[3]),
         // (double)(Output[4]), (double)(Output[5]), (double)(Output[6]), (double)(Output[7])
@@ -139,6 +150,7 @@ void FSK_buff_clear(FSK_instance* fsk, uint8_t ID){
  * Reads from the FSK buffers if they are full with N samples.
  * Then determines the current frequency based on the measurements
  * finally saves the found frequency in the ciruclar buffer.
+ * Discarts the found frequencies if they are not the frequency we are looking for
 */
 bool Read_and_save_new_FSK_frequency_if_avaiable(FSK_instance* fsk){
     if (fsk->buff.buff0_status == full){
@@ -280,12 +292,19 @@ bool FSK_buffer_put(FSK_buffer *buff, float32_t value){
  * reads the ADC values and places then in the FSK buffers
 */
 void FSK_read_ADC_value_and_put_in_buffer(FSK_instance* fsk){
+    static  int counter = 0;
     if(fsk->isInit){
         //we read the analoge values
         float32_t value = (float32_t)analogRead(FSK_ANALOGE_READ_PIN);
 
         // DEBUG_PRINT("analog read debug: %f\n", (double)value);
+        // DEBUG_PRINT("%f\n", (double)value);
+
         FSK_buffer_put(&fsk->buff, value);
+        if (counter == 10){
+            fsk_log.read_value = value;
+        }
+
     }
 }
 
@@ -510,6 +529,9 @@ void FSK_update(FSK_instance* fsk){
         if(Read_and_save_new_FSK_frequency_if_avaiable(fsk)){
             //increment a counter when a succesfull frequency read is performed
             FFT_count++;
+            // DEBUG_PRINT("V");
+        }else{
+        //   DEBUG_PRINT("IV \n");  
         }
         /** 
         * Do this every 5 succesfull frequency samples.
@@ -521,6 +543,8 @@ void FSK_update(FSK_instance* fsk){
             majority_frequency = obtain_majority_frequency_from_cBuf(cbuf_freq_recent);
             FFT_count = 0;
 
+            // DEBUG_PRINT("MF: %d" );
+
             //process the found majority frequency
             FSK_process_found_majority_frequency_and_save_byte_if_full(fsk, majority_frequency);
 
@@ -531,3 +555,8 @@ void FSK_update(FSK_instance* fsk){
         fsk_byte_timeout_reset(fsk);
     }
 }
+
+LOG_GROUP_START(FSKLOGGING)
+                //the raw RGB values of the sensors
+                LOG_ADD_CORE(LOG_FLOAT, value, &fsk_log.read_value)
+LOG_GROUP_STOP(FSKLOGGING)

@@ -47,7 +47,9 @@
         "task.h": "c",
         "debug.h": "c",
         "lighthouse_types.h": "c",
-        "imu_types.h": "c"
+        "imu_types.h": "c",
+        "stm32fxxx.h": "c",
+        "semphr.h": "c"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

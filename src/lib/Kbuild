@@ -72,4 +72,4 @@ obj-y += Custom_Libs/Gen_Norm_lib/src/gen_norm.o
 obj-y += Custom_Libs/Gen_Norm_lib/src/tm_stm32f4_rng.o
 
 #FSK instance
-obj-y += Custom_Libs/FSK_lib/src/FSK.o
+obj-y += Custom_Libs/FSK_lib/src/fsk.o

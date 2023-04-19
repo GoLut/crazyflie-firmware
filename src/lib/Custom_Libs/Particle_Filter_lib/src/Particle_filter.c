@@ -663,7 +663,7 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
         //update conditional parameters
         time_since_last_resample = sys_time_ms;
         last_recieved_color_ID = recieved_color_ID;
-        DEBUG_PRINT("performing resample to ID: %d", recieved_color_ID);
+        DEBUG_PRINT("performing particle resample to ID: %d \n", recieved_color_ID);
     }
 
     /**
