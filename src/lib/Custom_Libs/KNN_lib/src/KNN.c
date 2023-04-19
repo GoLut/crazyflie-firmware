@@ -1,30 +1,59 @@
 #include "KNN.h"
 
-TrainingPoint trainingPoints[NUMBER_OF_TRAINING_POINTS] = {
-        {.x_cart = 0.3409, .y_cart = 0.1717, .ID = 0},
-        {.x_cart = -0.5301, .y_cart = -0.0433, .ID = 1},
-        {.x_cart = 0.2077, .y_cart = -0.4121, .ID = 2},
-        {.x_cart = 0.0081, .y_cart = 0.5051, .ID = 3},
-        {.x_cart = -0.4783, .y_cart = 0.1666, .ID = 4},
-        {.x_cart = 0.0288, .y_cart = -0.2143, .ID = 5},
-        {.x_cart = 0.4018, .y_cart = 0.2563, .ID = 6},
-        {.x_cart = 0.7789, .y_cart = -0.3605, .ID = 7},
-        {.x_cart = -0.3171, .y_cart = -0.1242, .ID = 8},
-        {.x_cart = 0.0985, .y_cart = 0.4955, .ID = 3},
-        {.x_cart = 0.0519, .y_cart = -0.2313, .ID = 5},
-        {.x_cart = -0.3175, .y_cart = -0.1246, .ID = 8},
-        {.x_cart = 0.7934, .y_cart = -0.3558, .ID = 7},
-        {.x_cart = -0.4697, .y_cart = 0.1516, .ID = 4},
-        {.x_cart = 0.4167, .y_cart = 0.2472, .ID = 6},
-        {.x_cart = 0.3439, .y_cart = -0.4148, .ID = 2},
-        {.x_cart = 0.3476, .y_cart = 0.1581, .ID = 0},
-        {.x_cart = -0.5194, .y_cart = -0.0367, .ID = 1},
-        {.x_cart = 0.2846, .y_cart = 0.3089, .ID = 3},
-        {.x_cart = 0.5149, .y_cart = -0.4628, .ID = 2},
-        {.x_cart = 0.3023, .y_cart = 0.2817, .ID = 3},
-        {.x_cart = 0.0471, .y_cart = -0.4438, .ID = 2}
-};
+int KNNColorIDsUsedMapping[NUMBER_OF_IDS] = {1,2,3,6,7,8,9,0};
 
+TrainingPoint trainingPoints[NUMBER_OF_TRAINING_POINTS] = {
+{.x_cart = 0.401, .y_cart = 0.157, .ID = 0},
+{.x_cart = -0.4599, .y_cart = -0.0476, .ID = 1},
+{.x_cart = 0.8561, .y_cart = -0.3763, .ID = 3},
+{.x_cart = 0.3567, .y_cart = -0.4098, .ID = 2},
+{.x_cart = 0.2214, .y_cart = 0.3793, .ID = 6},
+{.x_cart = -0.4088, .y_cart = 0.2328, .ID = 4},
+{.x_cart = 0.1778, .y_cart = -0.3712, .ID = 2},
+{.x_cart = 0.5024, .y_cart = -0.1217, .ID = 5},
+{.x_cart = 0.7303, .y_cart = -0.2177, .ID = 3},
+{.x_cart = -0.0571, .y_cart = -0.3582, .ID = 2},
+{.x_cart = -0.6643, .y_cart = 0.1078, .ID = 1},
+{.x_cart = -0.2567, .y_cart = -0.1233, .ID = 7},
+{.x_cart = 0.3445, .y_cart = 0.3447, .ID = 6},
+{.x_cart = -0.2439, .y_cart = 0.1011, .ID = 4},
+{.x_cart = 0.3402, .y_cart = -0.1483, .ID = 5},
+{.x_cart = -0.5944, .y_cart = 0.0661, .ID = 1},
+{.x_cart = 0.8209, .y_cart = -0.3092, .ID = 3},
+{.x_cart = 0.5662, .y_cart = -0.3341, .ID = 3},
+{.x_cart = 0.3121, .y_cart = 0.4563, .ID = 6},
+{.x_cart = 0.8182, .y_cart = -0.0595, .ID = 5},
+{.x_cart = 0.121, .y_cart = -0.1621, .ID = 5},
+{.x_cart = -0.3893, .y_cart = 0.18, .ID = 4},
+{.x_cart = 0.6823, .y_cart = -0.1018, .ID = 5},
+{.x_cart = 0.7783, .y_cart = -0.2631, .ID = 3},
+{.x_cart = -0.3578, .y_cart = 0.4199, .ID = 4},
+{.x_cart = -0.4976, .y_cart = -0.0086, .ID = 1},
+{.x_cart = -0.2046, .y_cart = 0.2447, .ID = 4},
+{.x_cart = 0.0161, .y_cart = -0.3968, .ID = 2},
+{.x_cart = 0.0999, .y_cart = -0.3951, .ID = 2},
+{.x_cart = 0.1706, .y_cart = 0.49, .ID = 6},
+{.x_cart = 0.2095, .y_cart = 0.4358, .ID = 6},
+{.x_cart = 0.2662, .y_cart = -0.3732, .ID = 2},
+{.x_cart = -0.0556, .y_cart = -0.1932, .ID = 5},
+{.x_cart = 0.4181, .y_cart = -0.1231, .ID = 5},
+{.x_cart = 0.7133, .y_cart = -0.3624, .ID = 3},
+{.x_cart = 0.2401, .y_cart = -0.1513, .ID = 5},
+{.x_cart = -0.4472, .y_cart = 0.2945, .ID = 4},
+{.x_cart = 0.2929, .y_cart = 0.3557, .ID = 6},
+{.x_cart = -0.399, .y_cart = 0.1626, .ID = 4},
+{.x_cart = 0.579, .y_cart = -0.1163, .ID = 5},
+{.x_cart = 0.1881, .y_cart = 0.411, .ID = 6},
+{.x_cart = 0.4535, .y_cart = -0.2977, .ID = 3},
+{.x_cart = 0.0334, .y_cart = 0.1019, .ID = 4},
+{.x_cart = 0.2657, .y_cart = 0.4105, .ID = 6},
+{.x_cart = -0.3523, .y_cart = 0.1314, .ID = 4},
+{.x_cart = 0.8889, .y_cart = -0.3415, .ID = 3},
+{.x_cart = 0.3563, .y_cart = 0.1558, .ID = 0},
+{.x_cart = 0.51, .y_cart = -0.4385, .ID = 2},
+{.x_cart = 0.4968, .y_cart = 0.6408, .ID = 6},
+{.x_cart = -0.3229, .y_cart = 0.2548, .ID = 4}
+};
 /**
  * @brief distance calculation measurement used.
  * 
@@ -154,14 +183,14 @@ int8_t predictLabelOfPoint(KNNPoint *p0, TrainingPoint arr[], uint8_t* buffer, u
     // Serial.println("calc distances:");
     calcDistances(p0, arr);
 
-    //first sort the array (not as efficient but we are dealing here with a dataset array.)
+    //first sort the array (not as efficient but we are dealing here with a small dataset array.)
     // Serial.println("Bubblesort");
     bubbleSort(arr); 
 
     //KNNClassification
     int16_t result = KNNClassification(p0, arr, K);
 
-    //map the resulting output from the classification functio to this function.
+    //return result
     if (result == -1){
         return 0;
     }else{
