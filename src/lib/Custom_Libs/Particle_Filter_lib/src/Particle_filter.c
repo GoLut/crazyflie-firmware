@@ -350,6 +350,12 @@ void resample_particles(){
     place_particles_on_new_location();
 }
 
+float low_pass_EWMA(float x_0, float y_1, float a){
+    //a -> 1 minimal filtering
+    //a -> 0 maximal filtering
+    return a*x_0 + (1.0f-a)*y_1;
+
+}
 
 float high_pass_EWMA(float x_0, float x_1, float y_1, float b){
 
@@ -358,13 +364,6 @@ float high_pass_EWMA(float x_0, float x_1, float y_1, float b){
     return 0.5f*(2.0f-b) * (x_0-x_1) + (1.0f-b)*y_1;
 
     }
-
-float low_pass_EWMA(float x_0, float y_1, float a){
-    //a -> 1 minimal filtering
-    //a -> 0 maximal filtering
-    return a*x_0 + (1.0f-a)*y_1;
-
-}
 
 // float high_pass_butter_1st(float x_0, float x_1, float y_1){
 //     float a = 1.001f;
@@ -513,8 +512,8 @@ void init_motion_model_particle(MotionModelParticle* p){
 
     //set exponential weighted highpass filter parameter:
     // p->b = 0.0015f;
-    p->b = 0.003f;
     p->a = 0.001f;
+    p->b = 0.0005f;
 
 
     //set the motion model particle parameters to be zero initially
