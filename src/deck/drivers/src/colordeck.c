@@ -1,3 +1,10 @@
+/*
+upload to drone command:
+
+CLOAD_CMDS="-w radio://0/80/1M" make cload
+
+*/
+
 #define DEBUG_MODULE "colordeck"
 //Standard C libraries
 #include<stdbool.h>
@@ -437,14 +444,14 @@ void colorDeckTask(void* arg){
             
             // if prediction data is valid continue (0 or larger, -1 is invalid)
             if (predictionOutputValidity > 0){
-                // DEBUG_PRINT("We are recieving color ID: %d \n", KNNColorIDsUsedMapping[classificationID]);
+                DEBUG_PRINT("We are recieving color ID: %d \n", KNNColorIDsUsedMapping[classificationID]);
 
                 // Fill a buffer we are in a new color if we have received N of the same classifications.
                 if (AverageCollorClassification(&classificationID, cbuf_color_recent) == 1){
                     //If the above condition is true we check if the new color is different than the previously stored color
                     //We can do this because the pattern guarentees a unique color is next.
                     //This sequence is then saved in a buffer for future use.
-                    // DEBUG_PRINT("AVERAGEFOUND: %d \n", KNNColorIDsUsedMapping[classificationID]);
+                    DEBUG_PRINT("AVERAGEFOUND: %d \n", KNNColorIDsUsedMapping[classificationID]);
 
                     if (previous_classified_color != classificationID){
                         previous_classified_color = classificationID;

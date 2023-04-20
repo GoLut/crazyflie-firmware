@@ -16,6 +16,9 @@
 //IMU sensors:
 #include "sensors.h"
 
+//Digital filtering
+#include "digital_filters.h"
+
 
 #define MAP_CELL_SIZE 0.75
 #define LENS_FOCAL_LENGTH 9
@@ -27,7 +30,7 @@
 #define PARTICLE_FILTER_STARTING_Z 200//cm
 
 #define UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS 200 
-#define UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE 10000 //ms
+#define UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE 4000 //ms
 
 #define MAX_VELOCITY_BEFORE_RESET_FILTER 0.4f
 
@@ -350,26 +353,9 @@ void resample_particles(){
     place_particles_on_new_location();
 }
 
-float low_pass_EWMA(float x_0, float y_1, float a){
-    //a -> 1 minimal filtering
-    //a -> 0 maximal filtering
-    return a*x_0 + (1.0f-a)*y_1;
 
-}
 
-float high_pass_EWMA(float x_0, float x_1, float y_1, float b){
 
-    //b-> 0 less filtering
-    //b-> 1 more filtering
-    return 0.5f*(2.0f-b) * (x_0-x_1) + (1.0f-b)*y_1;
-
-    }
-
-// float high_pass_butter_1st(float x_0, float x_1, float y_1){
-//     float a = 1.001f;
-//     float b = 0.999f;
-//     return x_0/a + x_1/a + (b/a)*y_1;
-// }
 /**
  * Takes Accelerometer data and updates the motion model data.
  * This algorithm is based on the model described in the research paper (thesis)
@@ -550,7 +536,9 @@ void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
 
     // TODO optimize the standart deviation on the particle noise;
     // Make the standart deviation number of motion model step dependent to prevent abnormally large noise on small steps
-    const float std_dev = 0.01f; 
+    const float std_dev = 1.0f; 
+    norm2(0,std_dev, &noise_x, &noise_y);
+    DEBUG_PRINT("NX: %.5f, Ny: %.5f", (double)noise_x, (double)noise_y);
 
     for (uint16_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++){
         //obtain a normally distributed noise
@@ -558,8 +546,9 @@ void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
         // Update the particles pose x,y,z
             // NOTE that it can happen that the motion model is updated while we are updating the particles cause of task switch.
             // At most this can cause an irregular step in X and Y if task switch happens in between.
-        particles[i].x_curr += mp->x_curr + noise_x;
-        particles[i].y_curr += mp->y_curr + noise_y;
+            //*100 cause we are converting from meters to cm 
+        particles[i].x_curr += mp->x_curr*100 + noise_x;
+        particles[i].y_curr += mp->y_curr*100 + noise_y;
         //TODO implement the motion model for the Z particle
         particles[i].z_curr = particles[i].z_curr; 
         // DEBUG_PARTICLE(&particles[i]);

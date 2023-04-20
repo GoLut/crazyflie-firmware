@@ -20,6 +20,9 @@
 //logging:
 #include "log.h"
 
+//filtering
+#include "digital_filters.h"
+
 //to print individual bits:
 //source: https://stackoverflow.com/questions/111928/is-there-a-printf-converter-to-print-in-binary-format
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
@@ -293,16 +296,36 @@ bool FSK_buffer_put(FSK_buffer *buff, float32_t value){
 */
 void FSK_read_ADC_value_and_put_in_buffer(FSK_instance* fsk){
     static  int counter = 0;
+    static float32_t y_average_1 = 0;
+    const float32_t alpha = 0.015f;
+
     if(fsk->isInit){
         //we read the analoge values
-        float32_t value = (float32_t)analogRead(FSK_ANALOGE_READ_PIN);
+        float32_t y_raw = (float32_t)analogRead(FSK_ANALOGE_READ_PIN);
 
-        // DEBUG_PRINT("analog read debug: %f\n", (double)value);
-        // DEBUG_PRINT("%f\n", (double)value);
+        float32_t y_average_0 = low_pass_EWMA_f32(y_raw, y_average_1, alpha);
 
-        FSK_buffer_put(&fsk->buff, value);
+        float32_t error_margin = 650; //based on arduino measurements
+
+
+        //removes excessive large spikes form the measurements, by setting them to the mean value
+        //these spikes are caused by the IR beacons used by the lighthosue system. they mess up the communication protocal.
+        float32_t y_corrected = y_raw;
+        if((y_raw> y_average_0 + error_margin) || (y_raw < y_average_0 -error_margin)){
+            y_corrected = y_average_0;
+        }
+
+        // DEBUG_PRINT("Analog read: raw: %f, EWMA_average: %f, Filtered: %f \n", (double)y_raw, (double)y_average_0, (double) y_corrected);
+
+        //set the t-1 output value. for the EWMA
+        y_average_1 = y_average_0;
+
+        //save the result in the buffers
+        FSK_buffer_put(&fsk->buff, y_raw);
+
+        //For debugging we read form this buffer
         if (counter == 10){
-            fsk_log.read_value = value;
+            fsk_log.read_value = y_raw;
         }
 
     }
