@@ -24,7 +24,7 @@ typedef struct Particles
     float x_new, y_new, z_new;
 
     //position in int_16 to reduce sending overhead
-    int16_t x_curr_16;
+    int16_t z_curr_16;
     int16_t y_curr_16;
 
     //probability of the particle based on its location
