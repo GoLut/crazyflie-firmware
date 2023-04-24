@@ -52,9 +52,75 @@ float high_pass_EWMA(float x_0, float x_1, float y_1, float b){
 
 }
 
-//NOT WORKING
-// float high_pass_butter_1st(float x_0, float x_1, float y_1){
-//     float a = 1.001f;
-//     float b = 0.999f;
-//     return x_0/a + x_1/a + (b/a)*y_1;
-// }
+float high_pass_butter_1st(float x_0, float x_1, float y_1){
+    //using: https://www.micromodeler.com/dsp/
+
+    //500 hz, 0.25hz
+float filter1_coefficients[5] = 
+{
+// Scaled for floating point
+
+    0.9984316659283129, -0.9984316659283129, 0, 0.9968633318334379, 0// b0, b1, b2, a1, a2
+
+};
+    float b0 = filter1_coefficients[0];
+    float b1 = filter1_coefficients[1];
+    float a1 = filter1_coefficients[3];
+
+    float output = 0;
+
+    output += x_1 * b1;
+    output += x_0 * b0;
+    output += y_1 * a1;
+    return output;
+}
+
+float high_pass_butter_2st(float x_0, float x_1, float x_2, float y_1, float y_2){
+    //using: https://www.micromodeler.com/dsp/
+
+    //500 hz, 7hz
+float filter1_coefficients[5] = 
+{
+// Scaled for floating point
+
+    0.9396929145656655, -1.879385829131331, 0.9396929145656655, 1.8757455717092208, -0.8830260865534388// b0, b1, b2, a1, a2
+
+};
+
+    float b0 = filter1_coefficients[0];
+    float b1 = filter1_coefficients[1];
+    float b2 = filter1_coefficients[2];
+    float a1 = filter1_coefficients[3];
+    float a2 = filter1_coefficients[4];
+
+    float output = 0;
+    output += x_2 * b2;
+    output += x_1 * b1;
+    output += x_0 * b0;
+    output += y_1 * a1;
+    output += y_2 * a2;
+    return output;
+}
+
+float low_pass_butter_1st(float x_0, float x_1, float y_1){
+    //using: https://www.micromodeler.com/dsp/
+
+    //500 hz, 0.5hz
+float filter1_coefficients[5] = 
+{
+// Scaled for floating point
+
+    0.0031317642291927017, 0.0031317642291927017, 0, 0.9937364715416146, 0// b0, b1, b2, a1, a2
+
+};
+    float b0 = filter1_coefficients[0];
+    float b1 = filter1_coefficients[1];
+    float a1 = filter1_coefficients[3];
+
+    float output = 0;
+
+    output += x_1 * b1;
+    output += x_0 * b0;
+    output += y_1 * a1;
+    return output;
+}

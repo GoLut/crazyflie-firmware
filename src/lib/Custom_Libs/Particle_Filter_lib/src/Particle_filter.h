@@ -6,6 +6,7 @@
 //crazyflie libraries
 #include "log.h"
 
+
 #define UPDATE_TIME_INTERVAL_PARTICLE_POS 2 //ms
 #define PARTICLE_FILTER_NUM_OF_PARTICLES 100
 
@@ -50,10 +51,14 @@ typedef struct MotionModelParticles
 {
     //acceleration
     float a_x, a_y, a_z;
-    //acceleration
+    //acceleration -1
+    float a_x_, a_y_, a_z_;
+    float a_x__, a_y__, a_z__;
+    //acceleration filtered
     float a_x_f, a_y_f, a_z_f;
-    //acceleration t-1
+    //acceleration filtered t-1
     float a_x_f_, a_y_f_, a_z_f_;
+    float a_x_f__, a_y_f__, a_z_f__;
     //the velocity
     float v_x, v_y, v_z;
     //the velocity 1 time step back
@@ -68,11 +73,19 @@ typedef struct MotionModelParticles
     float x_abs, y_abs, z_abs;
     //the amount of times the motion model has updated the motion model particle before updating all particles with this information
     uint16_t motion_model_step_counter;
+
+    // The last recieved color ID
+    uint8_t recieved_color_ID_name;
     
     //log ID    
     logVarId_t id_acc_x;
     logVarId_t id_acc_y;
     logVarId_t id_acc_z;
+
+    logVarId_t id_vel_x;
+    logVarId_t id_vel_y;
+    logVarId_t id_vel_z;
+
     logVarId_t syscanfly;
 
     //IMU calibration values:
@@ -100,9 +113,10 @@ typedef struct MotionModelParticles
     float y_mean;
     float z_mean;
 
-
-
-
+    //simplified average location
+    int16_t x_mean_16;
+    int16_t y_mean_16;
+    int16_t z_mean_16;
 
 } MotionModelParticle;
 

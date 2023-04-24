@@ -53,6 +53,7 @@ CLOAD_CMDS="-w radio://0/80/1M" make cload
 #define UPDATESTATE_TASK_STACKSIZE  (configMINIMAL_STACK_SIZE) 
 #define UPDATESTATE_TASK_NAME "UPDATESTATETASK"
 #define UPDATESTATE_TASK_PRI 4
+#define UPDATESTATE_TASK_DELAY_UNTIL 2
 
 #define FSK_TASK_STACKSIZE  (5*configMINIMAL_STACK_SIZE) 
 #define FSK_TASK_NAME "FSKTASK"
@@ -349,9 +350,8 @@ void updateStateTask(void* arg){
 
     while(1) {
         //Do every x mili seconds
-        const int tick_time_in_ms = 2;
-        vTaskDelayUntil(&xLastWakeTime, M2T(tick_time_in_ms));
-        particle_filter_tick(tick_time_in_ms);
+        vTaskDelayUntil(&xLastWakeTime, M2T(UPDATESTATE_TASK_DELAY_UNTIL));
+        particle_filter_tick(UPDATESTATE_TASK_DELAY_UNTIL);
     }
 }
 
