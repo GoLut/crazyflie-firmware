@@ -75,6 +75,30 @@ float filter1_coefficients[5] =
     return output;
 }
 
+float high_pass_butter_1st_vel(float x_0, float x_1, float y_1){
+    //using: https://www.micromodeler.com/dsp/
+
+    //500 hz, 0.1hz
+float filter1_coefficients[5] = 
+{
+// Scaled for floating point
+
+    0.9993720759248407, -0.9993720759248407, 0, 0.9987441518459681, 0// b0, b1, b2, a1, a2
+
+};
+
+
+    float b0 = filter1_coefficients[0];
+    float b1 = filter1_coefficients[1];
+    float a1 = filter1_coefficients[3];
+
+    float output = 0;
+
+    output += x_1 * b1;
+    output += x_0 * b0;
+    output += y_1 * a1;
+    return output;
+}
 float high_pass_butter_2st(float x_0, float x_1, float x_2, float y_1, float y_2){
     //using: https://www.micromodeler.com/dsp/
 
@@ -111,6 +135,29 @@ float filter1_coefficients[5] =
 // Scaled for floating point
 
     0.0031317642291927017, 0.0031317642291927017, 0, 0.9937364715416146, 0// b0, b1, b2, a1, a2
+
+};
+    float b0 = filter1_coefficients[0];
+    float b1 = filter1_coefficients[1];
+    float a1 = filter1_coefficients[3];
+
+    float output = 0;
+
+    output += x_1 * b1;
+    output += x_0 * b0;
+    output += y_1 * a1;
+    return output;
+}
+
+float low_pass_butter_1st_acc(float x_0, float x_1, float y_1){
+    //using: https://www.micromodeler.com/dsp/
+
+    //500 hz, 50hz
+float filter1_coefficients[5] = 
+{
+// Scaled for floating point
+
+    0.1367287359973195, 0.1367287359973195, 0, 0.726542528005361, 0// b0, b1, b2, a1, a2
 
 };
     float b0 = filter1_coefficients[0];

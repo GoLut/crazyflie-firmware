@@ -71,7 +71,7 @@ static bool canFlyCheck()
     return false;
   }
   //! overwriting wire check
-  return true;
+  // return true;
   return !pmIsChargerConnected();
 }
 

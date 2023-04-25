@@ -88,7 +88,7 @@ tcs34725_Color_data tcs34725_data_struct0, tcs34725_data_struct1; //the data buf
 
 
 //Circular buffer to save the recently detected colors:
-#define RECENT_COLOR_BUFFER_SIZE 3
+#define RECENT_COLOR_BUFFER_SIZE 2
 uint16_t buffer_r[RECENT_COLOR_BUFFER_SIZE]  = {0};
 circular_buf_t cbufCR;
 cbuf_handle_t cbuf_color_recent = &cbufCR;

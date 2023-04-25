@@ -29,11 +29,12 @@
 #define PARTICLE_FILTER_MAX_MAP_SIZE 127 //cm  8 x 0.75 cm  = 127.333 -> 127
 #define PARTICLE_FILTER_STARTING_X 200//cm
 
-#define UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS 200 
-#define UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE 3000 //ms
+#define UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS 100 
+#define UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE 4000 //ms
 
 #define MAX_VELOCITY_BEFORE_RESET_FILTER 0.4f
 
+int colorIDMapping[8] = {1,2,3,6,7,8,9,0};
 
 
 bool particle_filter_inited = false;
@@ -101,6 +102,7 @@ int32_t uniform_distribution(int32_t rangeLow, int32_t rangeHigh) {
     return myRand_scaled;
 }
 
+
 /**
  * @brief exponental weigther moving average filter
  * 
@@ -124,8 +126,13 @@ float EWMA(float n, float alpha, float n_1){
 void calibrate_motion_model_IMU_on_startup(){
     // const TickType_t xDelay = 100 / portTICK_PERIOD_MS;  
 
-    if (logGetUint(motion_model_particle.syscanfly)){
+    if ((logGetUint(motion_model_particle.syscanfly)) && (logGetUint(motion_model_particle.lighthouse_status) == 2)){
         // DEBUG_PRINT("can fly");
+        const uint16_t do_nothing_delay = 1000; // couple seconds
+        if(motion_model_particle.EWMA_counter < do_nothing_delay){
+            motion_model_particle.EWMA_counter += 1;
+            return;
+        }
         if(!motion_model_particle.calibrated){
             float x_n = logGetFloat(motion_model_particle.id_acc_x);
             float y_n = logGetFloat(motion_model_particle.id_acc_y);
@@ -140,19 +147,69 @@ void calibrate_motion_model_IMU_on_startup(){
             motion_model_particle.EWMA_counter += 1;
 
             //set calibration to true when we are done.
-            if(motion_model_particle.EWMA_counter >= motion_model_particle.EWMA_number_of_calibration_measurements){
+            if(motion_model_particle.EWMA_counter >= motion_model_particle.EWMA_number_of_calibration_measurements + do_nothing_delay){
                 motion_model_particle.calibrated = true;
+                DEBUG_PRINT("Crazyfly additional setting is calibrated\n");
+
             }
             // DEBUG_PRINT("NOT calibrated %d \n", motion_model_particle.EWMA_counter );
         }
         else{
-            DEBUG_PRINT("calibrated\n");
+            DEBUG_PRINT("Crazyfly additional setting is calibrated\n");
         }
     }
 }
 
 bool particle_filter_is_calibrated(){
     return motion_model_particle.calibrated;
+}
+
+// Calculates the estimated Cell size based on distance estimate of the particle X following a linar expanding formula
+// https://www.notion.so/Week-20-21-5d91501fcd6844448b9e00b5bad383fa?pvs=4#d4aa3bc2a5624236b2a0bd661e46bb4a
+void calc_cell_size_at_particle_distance(Particle * p, float* cell_size){
+    //formula for the cell size over distance is linear
+    *cell_size = ((p->x_curr - (float)LENS_FOCAL_LENGTH)/ (float)LENS_FOCAL_LENGTH) * (float)MAP_CELL_SIZE;
+    // DEBUG_PRINT("Cell size: %f\n ", (double)*cell_size);
+}
+
+
+void set_inital_linspace_particle_distibution(){
+    //the counter to itterate over all particles
+    uint16_t counter = 0;
+
+    //calculate the cell size to use
+    //NOTE to use this with distance we need adust the cell size to the expected distance.
+    float cell_size = (float)PARTICLE_FILTER_MAX_MAP_SIZE / (float)MAP_SIZE;
+    // calc_cell_size_at_particle_distance(&particles[0], &cell_size);
+
+    while(counter < PARTICLE_FILTER_NUM_OF_PARTICLES){
+        for (int row = 0; row < MAP_SIZE; row++)
+        {
+            if (counter >= PARTICLE_FILTER_NUM_OF_PARTICLES){
+                break;
+            }
+
+            for(int coll = 0; coll < MAP_SIZE; coll++){
+                if (counter < PARTICLE_FILTER_NUM_OF_PARTICLES){
+
+                    particles[counter].y_curr =((float)coll)*cell_size + 0.5f*cell_size;
+                    particles[counter].z_curr =((float)row)*cell_size + 0.5f*cell_size;
+                    particles[counter].x_curr = PARTICLE_FILTER_STARTING_X;
+                    //set new pose to this as well
+                    particles[counter].x_new = particles[counter].x_curr;
+                    particles[counter].y_new = particles[counter].y_curr;
+                    particles[counter].z_new = particles[counter].z_curr;
+                    //increment counter
+                    counter ++;
+                }else{
+                    //we have itterated over all particles
+                    //ounter >= PARTICLE_FILTER_NUM_OF_PARTICLES
+                    break;
+                }
+            }
+        }
+        
+    }
 }
 
 
@@ -175,14 +232,6 @@ void set_initial_uniform_particle_distribution(Particle * p){
 //set the particle probability to be all on the false color.
 void set_particle_initial_probability(Particle * p){
     p->prob = PARTICLE_WRONG_COLOR_PROBABILITY;
-}
-
-// Calculates the estimated Cell size based on distance estimate of the particle X following a linar expanding formula
-// https://www.notion.so/Week-20-21-5d91501fcd6844448b9e00b5bad383fa?pvs=4#d4aa3bc2a5624236b2a0bd661e46bb4a
-void calc_cell_size_at_particle_distance(Particle * p, float* cell_size){
-    //formula for the cell size over distance is linear
-    *cell_size = ((p->x_curr - (float)LENS_FOCAL_LENGTH)/ (float)LENS_FOCAL_LENGTH) * (float)MAP_CELL_SIZE;
-    // DEBUG_PRINT("Cell size: %f\n ", (double)*cell_size);
 }
 
 
@@ -324,6 +373,8 @@ void calculate_mean_particle_location(MotionModelParticle* mp){
  *      2. From this p_counter we substract the probability property of every particle.
  *      3. When probability counter <= 0 then we assign the ith particle to the location of the jth particle saving the overflow for the next particle
  *      NOTE that the particles will resample to the higher probability more often over the lower probability.
+ * 
+ *  EDIT: particles in the correct colour don't resample
  * */
 void resample_particles(){
     //probability counter
@@ -336,30 +387,34 @@ void resample_particles(){
 
     for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++)
     {
-        //substract overflow from previous particle.
-        p_counter = p_counter - overflow;
-
-        while (p_counter > 0){
-            p_counter = p_counter - particles[j].prob;
-            //only increment j if there is p left.
-            if (p_counter >= 0){
-                // //pick a random J
-                // j = uniform_distribution(0,(PARTICLE_FILTER_NUM_OF_PARTICLES-1));
-                //TODO figure out if we want to do random or sequential.
-                //go in sequential order J
-                j++;
-                //ensures we don't overflow
-                j = j%PARTICLE_FILTER_NUM_OF_PARTICLES;
+        //only resample the particles thate have a wrong probability
+        if(particles[i].prob != PARTICLE_CORRECT_COLOR_PROBABILITY){
+            //substract overflow from previous particle.
+            p_counter = p_counter - overflow;
+            while (p_counter > 0){
+                p_counter = p_counter - particles[j].prob;
+                //only increment j if there is p left.
+                if (p_counter >= 0){
+                    // //pick a random J
+                    // j = uniform_distribution(0,(PARTICLE_FILTER_NUM_OF_PARTICLES-1));
+                    //TODO figure out if we want to do random or sequential.
+                    //go in sequential order J
+                    j++;
+                    //ensures we don't overflow
+                    j = j%PARTICLE_FILTER_NUM_OF_PARTICLES;
+                }
             }
+            //reset parameters and save overflow
+            overflow = abs(p_counter);
+            p_counter = uniform_distribution(50,200);
+            //assign new location to the i th particle based on the current j counter.
+            set_new_xyz_position(&particles[j], &particles[i]);
+            // DEBUG_PRINT("j = %lu, p: %d\n", j, p_counter);
+            // DEBUG_PARTICLE(&particles[i], i);
+        }else{
+            //the color is correct we don't resample this particel
+            set_new_xyz_position(&particles[i], &particles[i]);
         }
-        //reset parameters and save overflow
-        overflow = abs(p_counter);
-        p_counter = uniform_distribution(50,200);
-
-        //assign new location to the i th particle based on the current j counter.
-        set_new_xyz_position(&particles[j], &particles[i]);
-        // DEBUG_PRINT("j = %lu, p: %d\n", j, p_counter);
-        // DEBUG_PARTICLE(&particles[i], i);
     }
     place_particles_on_new_location();
 }
@@ -394,9 +449,13 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     
     //when using the kalman approximation
     // get the acceleration in the global reference frame
-    p->a_x = (logGetFloat(p->id_acc_x));
-    p->a_y = (logGetFloat(p->id_acc_y));
-    p->a_z = (logGetFloat(p->id_acc_z));
+    p->a_x = (logGetFloat(p->id_acc_x)- p->a_x_cali);
+    p->a_y = (logGetFloat(p->id_acc_y)- p->a_y_cali);
+    p->a_z = (logGetFloat(p->id_acc_z)- p->a_z_cali);
+    
+    // p->a_x = (logGetFloat(p->id_acc_x));
+    // p->a_y = (logGetFloat(p->id_acc_y));
+    // p->a_z = (logGetFloat(p->id_acc_z));
 
     //get the over time offset of the accelorometer
     // p->a_x_f = low_pass_EWMA(a_x, p->a_x_f_, p->a);
@@ -410,11 +469,18 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     // p->a_x_f = high_pass_butter_1st(p->a_x, p->a_x_, p->a_x_f_);
     // p->a_y_f = high_pass_butter_1st(p->a_y, p->a_y_, p->a_y_f_);
     // p->a_z_f = high_pass_butter_1st(p->a_z, p->a_z_, p->a_z_f_);
-    
-    p->a_x_f = high_pass_butter_2st(p->a_x, p->a_x_, p->a_x__, p->a_x_f_, p->a_x_f__);
-    p->a_y_f = high_pass_butter_2st(p->a_y, p->a_y_, p->a_y__, p->a_y_f_, p->a_y_f__);
-    p->a_z_f = high_pass_butter_2st(p->a_z, p->a_z_, p->a_z__, p->a_z_f_, p->a_z_f__);
 
+    // p->a_x_f = high_pass_butter_2st(p->a_x, p->a_x_, p->a_x__, p->a_x_f_, p->a_x_f__);
+    // p->a_y_f = high_pass_butter_2st(p->a_y, p->a_y_, p->a_y__, p->a_y_f_, p->a_y_f__);
+    // p->a_z_f = high_pass_butter_2st(p->a_z, p->a_z_, p->a_z__, p->a_z_f_, p->a_z_f__);
+    
+    p->a_x_f = low_pass_butter_1st_acc(p->a_x, p->a_x_, p->a_x_f_);
+    p->a_y_f = low_pass_butter_1st_acc(p->a_y, p->a_y_, p->a_y_f_);
+    p->a_z_f = low_pass_butter_1st_acc(p->a_z, p->a_z_, p->a_z_f_);
+
+    // p->a_x_f = p->a_x;
+    // p->a_y_f = p->a_y;
+    // p->a_z_f = p->a_z;
 
     //velocity update t0
     //times gravity cause the unit of acc is in Gs -> to m/s^2 = *9.81
@@ -432,9 +498,13 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     // p->v_y_f = low_pass_butter_1st(p->v_y, p->v_y_, p->v_y_f_);
     // p->v_z_f = low_pass_butter_1st(p->v_z, p->v_z_, p->v_z_f_);
     
-    p->v_x_f = p->v_x;
-    p->v_y_f = p->v_y;
-    p->v_z_f = p->v_z;
+    p->v_x_f = high_pass_butter_1st_vel(p->v_x, p->v_x_, p->v_x_f_);
+    p->v_y_f = high_pass_butter_1st_vel(p->v_y, p->v_y_, p->v_y_f_);
+    p->v_z_f = high_pass_butter_1st_vel(p->v_z, p->v_z_, p->v_z_f_);
+
+    // p->v_x_f = p->v_x;
+    // p->v_y_f = p->v_y;
+    // p->v_z_f = p->v_z;
 
     p->v_x_f = (logGetFloat(p->id_vel_x));
     p->v_y_f = (logGetFloat(p->id_vel_y));
@@ -566,6 +636,7 @@ void init_motion_model_particle(MotionModelParticle* p){
     // motion_model_particle.id_acc_z = logGetVarId("acc", "z");
 
     motion_model_particle.syscanfly = logGetVarId("sys", "canfly");
+    motion_model_particle.lighthouse_status = logGetVarId("lighthouse", "status");
 
     //count the number of measurments already taken
     motion_model_particle.EWMA_counter = 0;;
@@ -585,7 +656,7 @@ void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
 
     // TODO optimize the standart deviation on the particle noise;
     // Make the standart deviation number of motion model step dependent to prevent abnormally large noise on small steps
-    const float std_dev = 1.0f; 
+    const float std_dev = 0.7f; 
     norm2(0,std_dev, &noise_z, &noise_y);
     // DEBUG_PRINT("NX: %.5f, Ny: %.5f", (double)noise_z, (double)noise_y);
 
@@ -613,9 +684,11 @@ void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
 void reset_probability_and_particle_distribution(){
     //itterate over all particles and initialize the values
     DEBUG_PRINT("Resetting: particels and probability distribution");
+    //set a linspace distribution
+    set_inital_linspace_particle_distibution();
     for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++)
         {
-            set_initial_uniform_particle_distribution(&particles[i]);
+            // set_initial_uniform_particle_distribution(&particles[i]);
             set_particle_initial_probability(&particles[i]);
         }
 }
@@ -662,9 +735,10 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
     
     //Colors 0-("NUMBER_OF_COLORS"-1) are valid colors , "NUMBER_OF_COLORS" is invalid color
     static uint8_t last_recieved_color_ID = NUMBER_OF_COLORS;
-    // //Save for logging
-    // const uint8_t mapping[8] = {1,2,3,6,7,8,9,0};
-    // motion_model_particle.recieved_color_ID_name = mapping[recieved_color_ID];
+    static uint8_t all_particles_have_wrong_color_counter = 0;
+    
+    //Save for logging
+    motion_model_particle.recieved_color_ID_name = colorIDMapping[recieved_color_ID];
 
     //Timing parameters static initialized to 0 keep track on when a new particle update needs to happen
     static uint32_t time_since_last_resample = 0;
@@ -696,18 +770,25 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
         //if all particles have the wrong collor scatter the particles to a uniform distibution
         // if not then perform a normal resample procedure
         if (particles_with_wrong_color_count < PARTICLE_FILTER_NUM_OF_PARTICLES){
-            resample_particles();
+                resample_particles();
+                all_particles_have_wrong_color_counter = 0;
         }else{
-            reset_probability_and_particle_distribution();
+            all_particles_have_wrong_color_counter ++;
+            if(all_particles_have_wrong_color_counter == 2){
+                reset_probability_and_particle_distribution();
+            }
         }
         
         //update mean location estimate:
         calculate_mean_particle_location(&motion_model_particle);
+        //sync the locations such that the visualisation interface can be updated
+        sync_int16_particle_locations();
 
         //update conditional parameters
         time_since_last_resample = sys_time_ms;
         last_recieved_color_ID = recieved_color_ID;
-        DEBUG_PRINT("performing particle resample to ID: %d \n", recieved_color_ID);
+
+        DEBUG_PRINT("performing particle resample to ID: %d \n", colorIDMapping[recieved_color_ID]);
     }
 
     /**
@@ -717,10 +798,13 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
      && ((boot_delay + 8000) < sys_time_ms)) {
         // DEBUG_MOTION_PARTICLE(&motion_model_particle);
         apply_motion_model_update_to_all_particles(&motion_model_particle);
-    }
+        
+        calculate_mean_particle_location(&motion_model_particle);
+        
+        //sync the locations such that the visualisation interface can be updated
+        sync_int16_particle_locations();
 
-    //sync the locations such that the visualisation interface can be updated
-    sync_int16_particle_locations();
+    }
     
 }
 
@@ -762,9 +846,11 @@ LOG_GROUP_START(CStateEstimate)
                 LOG_ADD_CORE(LOG_INT16, y_mean_16, &motion_model_particle.y_mean_16)
                 LOG_ADD_CORE(LOG_INT16, z_mean_16, &motion_model_particle.z_mean_16)
 
-                // LOG_ADD_CORE(LOG_UINT8, colorIDname, &motion_model_particle.recieved_color_ID_name)
-
 LOG_GROUP_STOP(CStateEstimate)
+
+LOG_GROUP_START(color_status)
+                LOG_ADD_CORE(LOG_INT32, color_name_, &motion_model_particle.recieved_color_ID_name)
+LOG_GROUP_STOP(color_status)
 
 LOG_GROUP_START(ParticleFilter)
 LOG_ADD_CORE(LOG_INT16, z0_16, & particles[0].z_curr_16)

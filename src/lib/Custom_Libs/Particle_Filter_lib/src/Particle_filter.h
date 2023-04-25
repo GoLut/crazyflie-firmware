@@ -14,6 +14,7 @@
 
 #define MAP_SIZE 8
 
+
 //a particle is a single aporximation of the location of the crazyflie
 typedef struct Particles
 {
@@ -75,7 +76,7 @@ typedef struct MotionModelParticles
     uint16_t motion_model_step_counter;
 
     // The last recieved color ID
-    uint8_t recieved_color_ID_name;
+    int recieved_color_ID_name;
     
     //log ID    
     logVarId_t id_acc_x;
@@ -87,6 +88,7 @@ typedef struct MotionModelParticles
     logVarId_t id_vel_z;
 
     logVarId_t syscanfly;
+    logVarId_t lighthouse_status;
 
     //IMU calibration values:
     float a_x_cali;
