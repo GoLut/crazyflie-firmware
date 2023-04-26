@@ -69,6 +69,7 @@ INCLUDES += -I$(LIB)/Custom_Libs/FSK_lib/src
 INCLUDES += -I$(LIB)/Custom_Libs/Particle_Filter_lib/src
 INCLUDES += -I$(LIB)/Custom_Libs/Gen_Norm_lib/src
 INCLUDES += -I$(LIB)/Custom_Libs/Digital_Filtering_lib/src
+INCLUDES += -I$(LIB)/Custom_Libs/crazyflie_VLC_motion_commander_lib/scr
 
 # Here we tell Kbuild where to look for Kbuild files which will tell the
 # buildsystem which sources to build

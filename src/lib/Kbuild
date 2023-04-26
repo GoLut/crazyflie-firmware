@@ -76,3 +76,6 @@ obj-y += Custom_Libs/FSK_lib/src/fsk.o
 
 #digital filtering
 obj-y += Custom_Libs/Digital_Filtering_lib/src/digital_filters.o
+
+#vlc motion commander
+obj-y += Custom_Libs/crazyflie_VLC_motion_commander_lib/scr/crazyflie_VLC_motion_commander.o

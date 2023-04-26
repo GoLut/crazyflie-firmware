@@ -443,10 +443,9 @@ uint8_t isolate_packet_command(uint8_t data_byte){
     return output;
 }
 
-void queue_command(uint8_t command){
-    //TODO write this actual queing section
-    DEBUG_PRINT("command recieved and queued:" BYTE_TO_BINARY_PATTERN " \n", BYTE_TO_BINARY(command));
-    //pass
+void queue_command(uint8_t command, void( *callback_process_command)(uint8_t)){
+    //call the function
+    (*callback_process_command)(command);
 }
 
 
