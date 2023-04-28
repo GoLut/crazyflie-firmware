@@ -23,6 +23,8 @@
 //filtering
 #include "digital_filters.h"
 
+
+
 //to print individual bits:
 //source: https://stackoverflow.com/questions/111928/is-there-a-printf-converter-to-print-in-binary-format
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
@@ -468,7 +470,7 @@ void parse_data_byte(uint8_t data_byte){
     uint8_t command_recieved = isolate_packet_command(data_byte);
 
     //we queue the command to be executed seperate.
-    queue_command(command_recieved);
+    queue_command(command_recieved, &vlc_motion_commander_parce_command_byte);
 }
 
 /**

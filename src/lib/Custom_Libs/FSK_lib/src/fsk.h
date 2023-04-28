@@ -9,6 +9,9 @@
 //deck gpio parameters
 #include "deck.h"
 
+//motion commander
+#include "crazyflie_vlc_motion_commander.h"
+
 //The command id this drone will listen to
 #define DRONE_ID 0
 //the first few bits used in a data byte for identification
