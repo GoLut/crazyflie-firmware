@@ -55,12 +55,13 @@ float high_pass_EWMA(float x_0, float x_1, float y_1, float b){
 float high_pass_butter_1st(float x_0, float x_1, float y_1){
     //using: https://www.micromodeler.com/dsp/
 
-    //500 hz, 0.25hz
+    //500 hz, 0.1hz
+// 
 float filter1_coefficients[5] = 
 {
 // Scaled for floating point
 
-    0.9984316659283129, -0.9984316659283129, 0, 0.9968633318334379, 0// b0, b1, b2, a1, a2
+    0.9993720759248407, -0.9993720759248407, 0, 0.9987441518459681, 0// b0, b1, b2, a1, a2
 
 };
     float b0 = filter1_coefficients[0];
@@ -78,12 +79,12 @@ float filter1_coefficients[5] =
 float high_pass_butter_1st_vel(float x_0, float x_1, float y_1){
     //using: https://www.micromodeler.com/dsp/
 
-    //500 hz, 0.1hz
+    //500 hz, 0.05hz
 float filter1_coefficients[5] = 
 {
 // Scaled for floating point
 
-    0.9993720759248407, -0.9993720759248407, 0, 0.9987441518459681, 0// b0, b1, b2, a1, a2
+    0.9996859393898238, -0.9996859393898238, 0, 0.9993718787787191, 0// b0, b1, b2, a1, a2
 
 };
 
@@ -99,6 +100,58 @@ float filter1_coefficients[5] =
     output += y_1 * a1;
     return output;
 }
+
+float high_pass_butter_1st_pos(float x_0, float x_1, float y_1){
+    //using: https://www.micromodeler.com/dsp/
+
+    //500 hz, 0.5hz
+float filter1_coefficients[5] = 
+{
+// Scaled for floating point
+
+    0.9968682358171107, -0.9968682358171107, 0, 0.9937364715416146, 0// b0, b1, b2, a1, a2
+
+};
+    float b0 = filter1_coefficients[0];
+    float b1 = filter1_coefficients[1];
+    float a1 = filter1_coefficients[3];
+
+    float output = 0;
+
+    output += x_1 * b1;
+    output += x_0 * b0;
+    output += y_1 * a1;
+    return output;
+}
+
+float high_pass_butter_2st_pos(float x_0, float x_1, float x_2, float y_1, float y_2){
+    //using: https://www.micromodeler.com/dsp/
+
+    //500 hz, 0.15hz
+float filter1_coefficients[5] = 
+{
+// Scaled for floating point
+
+    0.9986680229880407, -1.9973360459760814, 0.9986680229880407, 1.9973342718125346, -0.9973378201396292// b0, b1, b2, a1, a2
+
+};
+
+    float b0 = filter1_coefficients[0];
+    float b1 = filter1_coefficients[1];
+    float b2 = filter1_coefficients[2];
+    float a1 = filter1_coefficients[3];
+    float a2 = filter1_coefficients[4];
+
+    float output = 0;
+    output += x_2 * b2;
+    output += x_1 * b1;
+    output += x_0 * b0;
+    output += y_1 * a1;
+    output += y_2 * a2;
+    return output;
+}
+
+
 float high_pass_butter_2st(float x_0, float x_1, float x_2, float y_1, float y_2){
     //using: https://www.micromodeler.com/dsp/
 

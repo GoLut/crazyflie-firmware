@@ -449,13 +449,13 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     
     //when using the kalman approximation
     // get the acceleration in the global reference frame
-    p->a_x = (logGetFloat(p->id_acc_x)- p->a_x_cali);
-    p->a_y = (logGetFloat(p->id_acc_y)- p->a_y_cali);
-    p->a_z = (logGetFloat(p->id_acc_z)- p->a_z_cali);
+    // p->a_x = (logGetFloat(p->id_acc_x)- p->a_x_cali);
+    // p->a_y = (logGetFloat(p->id_acc_y)- p->a_y_cali);
+    // p->a_z = (logGetFloat(p->id_acc_z)- p->a_z_cali);
     
-    // p->a_x = (logGetFloat(p->id_acc_x));
-    // p->a_y = (logGetFloat(p->id_acc_y));
-    // p->a_z = (logGetFloat(p->id_acc_z));
+    p->a_x = (logGetFloat(p->id_acc_x));
+    p->a_y = (logGetFloat(p->id_acc_y));
+    p->a_z = (logGetFloat(p->id_acc_z));
 
     //get the over time offset of the accelorometer
     // p->a_x_f = low_pass_EWMA(a_x, p->a_x_f_, p->a);
@@ -474,13 +474,13 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     // p->a_y_f = high_pass_butter_2st(p->a_y, p->a_y_, p->a_y__, p->a_y_f_, p->a_y_f__);
     // p->a_z_f = high_pass_butter_2st(p->a_z, p->a_z_, p->a_z__, p->a_z_f_, p->a_z_f__);
     
-    p->a_x_f = low_pass_butter_1st_acc(p->a_x, p->a_x_, p->a_x_f_);
-    p->a_y_f = low_pass_butter_1st_acc(p->a_y, p->a_y_, p->a_y_f_);
-    p->a_z_f = low_pass_butter_1st_acc(p->a_z, p->a_z_, p->a_z_f_);
+    // p->a_x_f = low_pass_butter_1st_acc(p->a_x, p->a_x_, p->a_x_f_);
+    // p->a_y_f = low_pass_butter_1st_acc(p->a_y, p->a_y_, p->a_y_f_);
+    // p->a_z_f = low_pass_butter_1st_acc(p->a_z, p->a_z_, p->a_z_f_);
 
-    // p->a_x_f = p->a_x;
-    // p->a_y_f = p->a_y;
-    // p->a_z_f = p->a_z;
+    p->a_x_f = p->a_x;
+    p->a_y_f = p->a_y;
+    p->a_z_f = p->a_z;
 
     //velocity update t0
     //times gravity cause the unit of acc is in Gs -> to m/s^2 = *9.81
@@ -498,51 +498,63 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     // p->v_y_f = low_pass_butter_1st(p->v_y, p->v_y_, p->v_y_f_);
     // p->v_z_f = low_pass_butter_1st(p->v_z, p->v_z_, p->v_z_f_);
     
-    p->v_x_f = high_pass_butter_1st_vel(p->v_x, p->v_x_, p->v_x_f_);
-    p->v_y_f = high_pass_butter_1st_vel(p->v_y, p->v_y_, p->v_y_f_);
-    p->v_z_f = high_pass_butter_1st_vel(p->v_z, p->v_z_, p->v_z_f_);
+    // p->v_x_f = high_pass_butter_1st_vel(p->v_x, p->v_x_, p->v_x_f_);
+    // p->v_y_f = high_pass_butter_1st_vel(p->v_y, p->v_y_, p->v_y_f_);
+    // p->v_z_f = high_pass_butter_1st_vel(p->v_z, p->v_z_, p->v_z_f_);
 
-    // p->v_x_f = p->v_x;
-    // p->v_y_f = p->v_y;
-    // p->v_z_f = p->v_z;
+    p->v_x_f = p->v_x;
+    p->v_y_f = p->v_y;
+    p->v_z_f = p->v_z;
 
-    p->v_x_f = (logGetFloat(p->id_vel_x));
-    p->v_y_f = (logGetFloat(p->id_vel_y));
-    p->v_z_f = (logGetFloat(p->id_vel_z));
+    // p->v_x_f = (logGetFloat(p->id_vel_x));
+    // p->v_y_f = (logGetFloat(p->id_vel_y));
+    // p->v_z_f = (logGetFloat(p->id_vel_z));
     
-    //remove velocity drift
-    if ((p->v_x > MAX_VELOCITY_BEFORE_RESET_FILTER) ||(p->v_x < -1 * MAX_VELOCITY_BEFORE_RESET_FILTER)){
-        p->v_x = 0;
-    }
-    if ((p->v_y > MAX_VELOCITY_BEFORE_RESET_FILTER) ||(p->v_y < -1 * MAX_VELOCITY_BEFORE_RESET_FILTER)){
-        p->v_y = 0;
-        DEBUG_PRINT("resetting velocity y estimate of motion model particle \n");
-    }
-    if ((p->v_z > MAX_VELOCITY_BEFORE_RESET_FILTER) ||(p->v_z < -1 * MAX_VELOCITY_BEFORE_RESET_FILTER)){
-        p->v_z = 0;
-        DEBUG_PRINT("resetting velocity z estimate of motion model particle \n");
+    // //remove velocity drift
+    // if ((p->v_x > MAX_VELOCITY_BEFORE_RESET_FILTER) ||(p->v_x < -1 * MAX_VELOCITY_BEFORE_RESET_FILTER)){
+    //     p->v_x = 0;
+    // }
+    // if ((p->v_y > MAX_VELOCITY_BEFORE_RESET_FILTER) ||(p->v_y < -1 * MAX_VELOCITY_BEFORE_RESET_FILTER)){
+    //     p->v_y = 0;
+    //     DEBUG_PRINT("resetting velocity y estimate of motion model particle \n");
+    // }
+    // if ((p->v_z > MAX_VELOCITY_BEFORE_RESET_FILTER) ||(p->v_z < -1 * MAX_VELOCITY_BEFORE_RESET_FILTER)){
+    //     p->v_z = 0;
+    //     DEBUG_PRINT("resetting velocity z estimate of motion model particle \n");
 
-    }
+    // }
 
     //update pose:
-    p->x_curr = p->x_curr +  0.5f * (p->v_x_f + p->v_x_f_)*sampleTimeInS;
-    p->y_curr = p->y_curr +  0.5f * (p->v_y_f + p->v_y_f_)*sampleTimeInS;
-    p->z_curr = p->z_curr +  0.5f * (p->v_z_f + p->v_z_f_)*sampleTimeInS;
+    p->x_curr = p->x_curr_ +  0.5f * (p->v_x_f + p->v_x_f_)*sampleTimeInS;
+    p->y_curr = p->y_curr_ +  0.5f * (p->v_y_f + p->v_y_f_)*sampleTimeInS;
+    p->z_curr = p->z_curr_ +  0.5f * (p->v_z_f + p->v_z_f_)*sampleTimeInS;
 
-    //update acumulated distance
-    p->x_abs = p->x_abs +  0.5f * (p->v_x_f + p->v_x_f_)*sampleTimeInS;
-    p->y_abs = p->y_abs +  0.5f * (p->v_y_f + p->v_y_f_)*sampleTimeInS;
-    p->z_abs = p->z_abs +  0.5f * (p->v_z_f + p->v_z_f_)*sampleTimeInS;
+    p->x_curr_f = high_pass_butter_2st_pos(p->x_curr, p->x_curr_, p->x_curr__, p->x_curr_f_, p->x_curr_f__);
+    p->y_curr_f = high_pass_butter_2st_pos(p->y_curr, p->y_curr_, p->y_curr__, p->y_curr_f_, p->y_curr_f__);
+    p->z_curr_f = high_pass_butter_2st_pos(p->z_curr, p->z_curr_, p->z_curr__, p->z_curr_f_, p->z_curr_f__);
 
-    //update acceleration t-1
-    p->a_x_ = p->a_x;
-    p->a_y_ = p->a_y;
-    p->a_z_ = p->a_z;
+    p->x_abs = p->x_curr_f;
+    p->y_abs = p->y_curr_f;
+    p->z_abs = p->z_curr_f;
+
+    // p->x_abs = p->x_curr;
+    // p->y_abs = p->y_curr;
+    // p->z_abs = p->z_curr;
+
+    // //update acumulated distance
+    // p->x_abs = p->x_abs + p->x_curr_f;
+    // p->y_abs = p->y_abs + p->y_curr_f;
+    // p->z_abs = p->z_abs + p->z_curr_f;
 
     //update acceleration t-2
     p->a_x__ = p->a_x_;
     p->a_y__ = p->a_y_;
     p->a_z__ = p->a_z_;
+
+    //update acceleration t-1
+    p->a_x_ = p->a_x;
+    p->a_y_ = p->a_y;
+    p->a_z_ = p->a_z;
 
     //Update velocity t-1
     p->v_x_ = p->v_x;
@@ -555,13 +567,36 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS){
     p->v_z_f_ = p->v_z_f;
 
     //Update filtered acceleration
+    p->a_x_f__ = p->a_x_f_;
+    p->a_y_f__ = p->a_y_f_;
+    p->a_z_f__ = p->a_z_f_;
+
     p->a_x_f_ = p->a_x_f;
     p->a_y_f_ = p->a_y_f;
     p->a_z_f_ = p->a_z_f;
 
-    p->a_x_f__ = p->a_x_f_;
-    p->a_y_f__ = p->a_y_f_;
-    p->a_z_f__ = p->a_z_f_;
+
+    //position filtering
+    p->x_curr__ = p->x_curr_;
+    p->y_curr__ = p->y_curr_;
+    p->z_curr__ = p->z_curr_;
+
+    p->x_curr_ = p->x_curr;
+    p->y_curr_ = p->y_curr;
+    p->z_curr_ = p->z_curr;
+    
+    p->x_curr_f__ = p->x_curr_f_;
+    p->y_curr_f__ = p->y_curr_f_;
+    p->z_curr_f__ = p->z_curr_f_;
+
+    p->x_curr_f_ = p->x_curr_f;
+    p->y_curr_f_ = p->y_curr_f;
+    p->z_curr_f_ = p->z_curr_f;
+
+    //simplified layout for logging
+    p->x_absz = (int16_t)(p->x_abs*1000.0f);
+    p->y_absz = (int16_t)(p->y_abs*1000.0f);
+    p->z_absz = (int16_t)(p->z_abs*1000.0f);
 
 
     //update the steps taken counter
@@ -579,9 +614,9 @@ void resetMotionModelParticleToZero(MotionModelParticle * p){
     // p->v_x_ = 0;
     // p->v_y_ = 0;
     // p->v_z_ = 0;
-    p->x_curr = 0;
-    p->y_curr = 0;
-    p->z_curr = 0;
+    // p->x_curr = 0;
+    // p->y_curr = 0;
+    // p->z_curr = 0;
     p->motion_model_step_counter = 0;
 }
 
@@ -845,6 +880,16 @@ LOG_GROUP_START(CStateEstimate)
                 LOG_ADD_CORE(LOG_INT16, x_mean_16, &motion_model_particle.x_mean_16)
                 LOG_ADD_CORE(LOG_INT16, y_mean_16, &motion_model_particle.y_mean_16)
                 LOG_ADD_CORE(LOG_INT16, z_mean_16, &motion_model_particle.z_mean_16)
+
+                LOG_ADD_CORE(LOG_FLOAT, x_curr_f, &motion_model_particle.x_curr_f)
+                LOG_ADD_CORE(LOG_FLOAT, y_curr_f, &motion_model_particle.y_curr_f)
+                LOG_ADD_CORE(LOG_FLOAT, z_curr_f, &motion_model_particle.z_curr_f)
+
+                LOG_ADD_CORE(LOG_INT16, x_absz, &motion_model_particle.x_absz)
+                LOG_ADD_CORE(LOG_INT16, y_absz, &motion_model_particle.y_absz)
+                LOG_ADD_CORE(LOG_INT16, z_absz, &motion_model_particle.z_absz)
+
+
 
 LOG_GROUP_STOP(CStateEstimate)
 

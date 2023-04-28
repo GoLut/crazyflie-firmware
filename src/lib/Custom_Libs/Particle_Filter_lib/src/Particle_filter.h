@@ -70,8 +70,16 @@ typedef struct MotionModelParticles
     float v_x_f_, v_y_f_, v_z_f_;
     //the current position
     float x_curr, y_curr, z_curr;
+    float x_curr_, y_curr_, z_curr_;
+    float x_curr__, y_curr__, z_curr__;
+
+    float x_curr_f, y_curr_f, z_curr_f;
+    float x_curr_f_, y_curr_f_, z_curr_f_;
+    float x_curr_f__, y_curr_f__, z_curr_f__;
     //the accumulated position of the motion model particel
     float x_abs, y_abs, z_abs;
+    
+    int16_t x_absz, y_absz, z_absz;
     //the amount of times the motion model has updated the motion model particle before updating all particles with this information
     uint16_t motion_model_step_counter;
 
