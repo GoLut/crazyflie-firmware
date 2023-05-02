@@ -51,7 +51,8 @@
         "stm32fxxx.h": "c",
         "semphr.h": "c",
         "digital_filters.h": "c",
-        "crazyflie_vlc_motion_commander.h": "c"
+        "crazyflie_vlc_motion_commander.h": "c",
+        "driver_tcs34725_interface.h": "c"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

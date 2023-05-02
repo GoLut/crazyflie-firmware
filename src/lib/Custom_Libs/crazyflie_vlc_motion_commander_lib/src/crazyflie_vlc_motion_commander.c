@@ -28,26 +28,13 @@
 
 #include "crazyflie_vlc_motion_commander.h"
 
-#include <string.h>
-#include <stdint.h>
-#include <stdbool.h>
-
-#include "app.h"
-
 #include "commander.h"
-
-#include "FreeRTOS.h"
-#include "task.h"
-
-#include "debug.h"
-
-#include "log.h"
-#include "param.h"
 
 // Circular Buffer
 #include "circular_buffer.h"
 
 #include "debug.h"
+
 
 
 #define VLC_COMMAND_DURATION 1000 //duration of a command in ms
@@ -65,7 +52,7 @@ static void setflightSetpoint(setpoint_t *setpoint, float vx, float vy, float vz
 {
   setpoint->mode.x = modeVelocity;
   setpoint->mode.y = modeVelocity;
-  setpoint->mode.y = modeVelocity;
+  setpoint->mode.z = modeVelocity;
   setpoint->velocity.x = vx;
   setpoint->velocity.y = vy;
   setpoint->velocity.z = vz;
@@ -75,15 +62,26 @@ static void setflightSetpoint(setpoint_t *setpoint, float vx, float vy, float vz
 }
 
 typedef enum {
-    locked,
-    idle,
-    moving
+    s_uninited,
+    s_locked,
+    s_idle,
+    s_moving
 } State;
 
+/*
+    TAKE_OFF = 1 #this is enable vlc in vlc mode
+    LAND = 2 # this is disable vlc in vlc mode
+    UP = 3
+    DOWN = 4
+    LEFT = 5
+    RIGHT = 6
+    FORWARD = 7
+    BACK = 8
+    */
 typedef enum {
     c_idle = 0,
-    c_lock = 1,
-    c_unlock = 2,
+    c_unlock = 1,
+    c_lock = 2,
     c_up = 3,
     c_down = 4,
     c_left = 5,
@@ -93,12 +91,13 @@ typedef enum {
 } FlightCommand;
 
 //static variable only accesable from this file but acceable by the whole file
-static State state = locked;
+static State state = s_uninited;
 static const float velMax = 0.2f;
 
 
 void VLC_motion_command_velocity_move(){
-    if(state != locked){
+    if(state != s_locked){
+        DEBUG_PRINT("Execute velocity setpoint command \n");
         float vel_x = 0;
         float vel_y = 0;
         float vel_z = 0.1;
@@ -109,7 +108,8 @@ void VLC_motion_command_velocity_move(){
 }
 
 void VLC_motion_command_idle(){
-    if(state != locked){
+    if(state != s_locked){
+        // DEBUG_PRINT("Execute idle setpoint command \n");
         float vel_x = 0;
         float vel_y = 0;
         float vel_z = 0;
@@ -119,20 +119,17 @@ void VLC_motion_command_idle(){
     }
 }
 
-
 void unlock_VLC_motion_command(){
-    state = idle;
+    DEBUG_PRINT("Motion command is unlocked and idle \n");
+    state = s_idle;
 }
 
 void lock_VLC_motion_command(){
     //first set the motion to zero;
     VLC_motion_command_idle();
-    state = locked;
-}
+    state = s_locked;
+    DEBUG_PRINT("Motion command is set idle and locked \n");
 
-void VLC_motion_commander_init(){
-    state = locked;
-    cbuf_commands = circular_buf_init(buffer_command, COMMAND_BUFFER_SIZE, cbuf_commands);
 }
 
 
@@ -141,6 +138,7 @@ void _VLC_flight_commander(FlightCommand command){
     case c_up:
         // statements
         DEBUG_PRINT("Up \n");
+        VLC_motion_command_velocity_move();
         break;
 
     case c_down:
@@ -170,9 +168,15 @@ void _VLC_flight_commander(FlightCommand command){
 
     case c_idle:
         // statements
-        DEBUG_PRINT("Idle \n");
+        // DEBUG_PRINT("Idle \n");
+        VLC_motion_command_idle();
         break;
-
+    case c_lock:
+        lock_VLC_motion_command();
+        break;
+    case c_unlock:
+        unlock_VLC_motion_command();
+        break;
     default:
       // default statements
       DEBUG_PRINT("Default \n");
@@ -183,75 +187,88 @@ void _VLC_flight_commander(FlightCommand command){
 
 void vlc_motion_commander_parce_command_byte(uint8_t command){
     //parce and place the correct command in the buffer
+    DEBUG_PRINT("Recieved byte from fsk link placing it in c_buffer \n");
     circular_buf_put(cbuf_commands, (uint16_t)command);
 }
 
+void VLC_motion_commander_init(){
+    //initialise buffer
+    cbuf_commands = circular_buf_init(buffer_command, COMMAND_BUFFER_SIZE, cbuf_commands);
+    //the system has initialised
+    state = s_locked;
+    DEBUG_PRINT("Motion commander has initialised \n");
+}
+
 void VLC_motion_commander_update(uint32_t sys_time_ms){
-    /**
-     * Vars: start_time_of_command
-     * Enum: current_command
-     * 
-     * currently running a command AND has time not passed?
-     * - YES:, YES: execute current velocity command again
-     * 
-     * NO: 
-     * we check if a new command has arrived in the buffer
-     * - if NO: we execute the VLC_motion_command_idle to set the drone speed to 0;
-     * 
-     * - if YES: we save our current time
-     * - execute the next command
-    */
 
-    static uint32_t command_start_time = 0;
-    static FlightCommand current_command = c_idle;
+    //the system has to be initialized
+    if(state != s_uninited){
+        /**
+         * Vars: start_time_of_command
+         * Enum: current_command
+         * 
+         * currently running a command AND has time not passed?
+         * - YES:, YES: execute current velocity command again
+         * 
+         * NO: 
+         * we check if a new command has arrived in the buffer
+         * - if NO: we execute the VLC_motion_command_idle to set the drone speed to 0;
+         * 
+         * - if YES: we save our current time
+         * - execute the next command
+        */
 
-    if(state != locked){
-        //we are executing a command if this is the case
-        if(command_start_time + VLC_COMMAND_DURATION > sys_time_ms){
-            _VLC_flight_commander(current_command);
-            DEBUG_PRINT("Continuing executing current command");
-            return;
-        }
-        //recieve new command from buffer if there is a new command
-        if(!circular_buf_empty(cbuf_commands)){
-            DEBUG_PRINT("processing motion command form Cbuf \n");
-            //read from the ciruclar buffer
-            uint16_t temp;
-            circular_buf_get(cbuf_commands, &temp);
-            current_command = (FlightCommand)temp;
-            //save the start time of the command
-            command_start_time = sys_time_ms;
-            //start executing this command;
+        static uint32_t command_start_time = 0;
+        static FlightCommand current_command = c_idle;
+
+        if(state != s_locked){
+            //we are executing a command if this is the case
+            if(command_start_time + VLC_COMMAND_DURATION > sys_time_ms){
                 _VLC_flight_commander(current_command);
-            //update the system state
-            if (current_command == idle){
-                state = idle;
+                DEBUG_PRINT("Continuing executing current command: ");
                 return;
+            }
+            //recieve new command from buffer if there is a new command
+            if(!circular_buf_empty(cbuf_commands)){
+                DEBUG_PRINT("Processing motion command form Cbuf \n");
+                //read from the ciruclar buffer
+                uint16_t temp;
+                circular_buf_get(cbuf_commands, &temp);
+                current_command = (FlightCommand)temp;
+                //save the start time of the command
+                command_start_time = sys_time_ms;
+                //start executing this command;
+                _VLC_flight_commander(current_command);
+                //update the system state
+                if (current_command == c_idle){
+                    state = s_idle;
+                    return;
+                }else{
+                    state = s_moving;
+                    return;
+                }
+            //no new command we remain idle
             }else{
-                state = moving;
+                current_command = c_idle;
+                _VLC_flight_commander(current_command);
+                state = s_idle;
                 return;
             }
-        //no new command we remain idle
         }else{
-            current_command = c_idle;
-            _VLC_flight_commander(current_command);
-            state = idle;
-            return;
-        }
-    }else{
-        //system is locked: empty commands in buffer while system is locked
-        while(!circular_buf_empty(cbuf_commands)){
-            uint16_t temp;
-            circular_buf_get(cbuf_commands, &temp);
-            if ((FlightCommand)temp == c_unlock){
-                unlock_VLC_motion_command();
-                return;
+            //system is locked: empty commands in buffer while system is locked
+            while(!circular_buf_empty(cbuf_commands)){
+                uint16_t temp;
+                circular_buf_get(cbuf_commands, &temp);
+                if ((FlightCommand)temp == c_unlock){
+                    unlock_VLC_motion_command();
+                    return;
+                }
+                if((FlightCommand)temp == c_lock){
+                    lock_VLC_motion_command();
+                    return;
+                }
+                DEBUG_PRINT("Removing command form command buffer cause system is locked. \n");
             }
-            if((FlightCommand)temp == c_lock){
-                lock_VLC_motion_command();
-                return;
-            }
-            DEBUG_PRINT("removing command form command buffer cause system is locked. \n");
         }
     }
 }

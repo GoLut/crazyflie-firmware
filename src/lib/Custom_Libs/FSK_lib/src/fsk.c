@@ -447,6 +447,7 @@ uint8_t isolate_packet_command(uint8_t data_byte){
 
 void queue_command(uint8_t command, void( *callback_process_command)(uint8_t)){
     //call the function
+    DEBUG_PRINT("Queueing command in vlc motion commander \n");
     (*callback_process_command)(command);
 }
 

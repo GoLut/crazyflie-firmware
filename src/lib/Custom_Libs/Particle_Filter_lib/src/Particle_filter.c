@@ -683,7 +683,7 @@ void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
 
 void reset_probability_and_particle_distribution(){
     //itterate over all particles and initialize the values
-    DEBUG_PRINT("Resetting: particels and probability distribution");
+    DEBUG_PRINT("Resetting: particels and probability distribution \n");
     //set a linspace distribution
     set_inital_linspace_particle_distibution();
     for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++)

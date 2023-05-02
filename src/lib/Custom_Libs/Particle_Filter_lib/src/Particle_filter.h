@@ -77,6 +77,8 @@ typedef struct MotionModelParticles
 
     // The last recieved color ID
     int recieved_color_ID_name;
+
+    int last_send_motion_command;
     
     //log ID    
     logVarId_t id_acc_x;
