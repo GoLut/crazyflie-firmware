@@ -5,14 +5,43 @@
 
 //crazyflie libraries
 #include "log.h"
+#include "param.h"
+
 
 
 #define UPDATE_TIME_INTERVAL_PARTICLE_POS 2 //ms
-#define PARTICLE_FILTER_NUM_OF_PARTICLES 100
+#define PARTICLE_FILTER_NUM_OF_PARTICLES 10
 
 #define NUMBER_OF_COLORS 7
 
 #define MAP_SIZE 8
+
+typedef enum {
+    c_idle = 0,
+    c_unlock = 1,
+    c_lock = 2,
+    c_up = 3,
+    c_down = 4,
+    c_left = 5,
+    c_right = 6,
+    c_forward = 7,
+    c_backward = 8,
+    c_take_off = 9,
+    c_land = 10
+} FlightCommand;
+
+typedef enum {
+    stage_idle,
+    stage_executing,
+    stage_cooldown
+} FlightManuvreStage;
+
+typedef enum {
+    axis_none,
+    axis_x,
+    axis_y,
+    axis_z
+} ActiveFlightAxis;
 
 
 //a particle is a single aporximation of the location of the crazyflie
@@ -68,7 +97,7 @@ typedef struct MotionModelParticles
     float v_x_f, v_y_f, v_z_f;
     //the velocity filtered 1 time step back
     float v_x_f_, v_y_f_, v_z_f_;
-    //the current position
+    //the accumulated position of the motion model particel
     float x_curr, y_curr, z_curr;
     float x_curr_, y_curr_, z_curr_;
     float x_curr__, y_curr__, z_curr__;
@@ -76,15 +105,33 @@ typedef struct MotionModelParticles
     float x_curr_f, y_curr_f, z_curr_f;
     float x_curr_f_, y_curr_f_, z_curr_f_;
     float x_curr_f__, y_curr_f__, z_curr_f__;
-    //the accumulated position of the motion model particel
-    float x_abs, y_abs, z_abs;
     
-    int16_t x_absz, y_absz, z_absz;
+    //small update
+    float x_delta, y_delta, z_delta;
+    
+    int16_t x_currz, y_currz, z_currz;
     //the amount of times the motion model has updated the motion model particle before updating all particles with this information
     uint16_t motion_model_step_counter;
 
     // The last recieved color ID
     int recieved_color_ID_name;
+ 
+    //Last recieved command 
+    uint8_t last_recieved_command;
+    uint8_t new_recieved_command;
+    //The type of command send
+    paramVarId_t id_new_command_param;
+
+    //The different stages of executing a command.
+    FlightManuvreStage new_command_has_been_executed;
+    //Acc values from the wrong axis mess with the pose estimate
+    ActiveFlightAxis current_active_flight_axis;
+
+    //time when last command was send to the crazyflie
+    uint32_t time_since_last_command;
+    //time to cooldown after roll or pitch has crossed the 0 boundary
+    uint32_t time_start_cooldown;
+
     
     //log ID    
     logVarId_t id_acc_x;
@@ -94,6 +141,11 @@ typedef struct MotionModelParticles
     logVarId_t id_vel_x;
     logVarId_t id_vel_y;
     logVarId_t id_vel_z;
+
+    logVarId_t id_roll_state_estimate;
+    logVarId_t id_pitch_state_estimate;
+    logVarId_t id_yaw_state_estimate;
+
 
     logVarId_t syscanfly;
     logVarId_t lighthouse_status;
@@ -149,7 +201,7 @@ void particle_filter_init();
  * This section is dedicated to run every N miliseconds
  * Only run small sections of code here, leave the big code sections to the update function
 */
-void particle_filter_tick(int tick_time_in_ms);
+void particle_filter_tick(int tick_time_in_ms, uint32_t sys_time_ms);
 
 
 //this function needs to be run and will update the particle filter
