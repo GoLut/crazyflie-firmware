@@ -1,3 +1,10 @@
+/*
+upload to drone command:
+
+CLOAD_CMDS="-w radio://0/80/1M" make cload
+
+*/
+
 #define DEBUG_MODULE "colordeck"
 //Standard C libraries
 #include<stdbool.h>
@@ -25,22 +32,33 @@
 // Circular Buffer
 #include "circular_buffer.h"
 
+//FSK
+#include "fsk.h"
+
 //particle filter
 #include "Particle_filter.h"
+
 
 // RTOS new TASKS
 #define COLORDECK_TASK_STACKSIZE  (7*configMINIMAL_STACK_SIZE) 
 #define COLORDECK_TASK_NAME "COLORDECKTASK"
-#define COLORDECK_TASK_PRI 2
+#define COLORDECK_TASK_PRI 3
+#define COLORDECK_TASK_DELAY_UNTIL 25
 
-#define GPIOMONITOR_TASK_STACKSIZE  (configMINIMAL_STACK_SIZE) 
-#define GPIOMONITOR_TASK_NAME "GPIOMonitor"
-#define GPIOMONITOR_TASK_PRI 4
+#define COLORDECKTICK_TASK_STACKSIZE  (2*configMINIMAL_STACK_SIZE) 
+#define COLORDECKTICK_TASK_NAME "COLORDECKTICKTASK"
+#define COLORDECKTICK_TASK_PRI 6
+#define COLORDECKTICK_TASK_DELAY_UNTIL 1
 
 #define UPDATESTATE_TASK_STACKSIZE  (configMINIMAL_STACK_SIZE) 
 #define UPDATESTATE_TASK_NAME "UPDATESTATETASK"
 #define UPDATESTATE_TASK_PRI 4
+#define UPDATESTATE_TASK_DELAY_UNTIL 2
 
+#define FSK_TASK_STACKSIZE  (5*configMINIMAL_STACK_SIZE) 
+#define FSK_TASK_NAME "FSKTASK"
+#define FSK_TASK_PRI 2
+#define FSK_TASK_TASK_DELAY_UNTIL 10
 
 //TCSColor sensor defines
 #define TCS34725_SENS0_TCA9548A_CHANNEL TCA9548A_CHANNEL7
@@ -49,7 +67,8 @@
 //FreeRTOS settings
 static bool isInit = false;
 void colorDeckTask(void* arg);
-void gpioMonitorTask(void* arg);
+void colorDeckTickTask(void* arg);
+void fskTask(void* arg);
 void updateStateTask(void* arg);
 
 //TCA9548a settings
@@ -69,10 +88,16 @@ tcs34725_Color_data tcs34725_data_struct0, tcs34725_data_struct1; //the data buf
 
 
 //Circular buffer to save the recently detected colors:
-#define RECENT_COLOR_BUFFER_SIZE 3
-uint8_t buffer_r[RECENT_COLOR_BUFFER_SIZE]  = {0};
+#define RECENT_COLOR_BUFFER_SIZE 2
+uint16_t buffer_r[RECENT_COLOR_BUFFER_SIZE]  = {0};
 circular_buf_t cbufCR;
 cbuf_handle_t cbuf_color_recent = &cbufCR;
+
+
+//FSK
+FSK_instance fsk_instance = {0};
+// static float new_recieved_command = 0; //idle
+
 
 /**
  * Read the information recieved from the TCS color sensors and saves this in the sensor struct. 
@@ -137,11 +162,12 @@ static void colorDeckInit()
     DEBUG_PRINT("Initializing my Color Sensor deck \n");
 
     //initializing the I2C driver of the crazyflie
-    i2cdevInit(I2C1_DEV);
+    // i2cdevInit(I2C1_DEV);
 
     //New RTOS tasks
     xTaskCreate(colorDeckTask, COLORDECK_TASK_NAME, COLORDECK_TASK_STACKSIZE, NULL, COLORDECK_TASK_PRI, NULL);
-    xTaskCreate(gpioMonitorTask, GPIOMONITOR_TASK_NAME, GPIOMONITOR_TASK_STACKSIZE, NULL, GPIOMONITOR_TASK_PRI, NULL);
+    xTaskCreate(colorDeckTickTask, COLORDECKTICK_TASK_NAME, COLORDECKTICK_TASK_STACKSIZE, NULL, COLORDECKTICK_TASK_PRI, NULL);
+    xTaskCreate(fskTask, FSK_TASK_NAME, FSK_TASK_STACKSIZE, NULL, FSK_TASK_PRI, NULL);
     xTaskCreate(updateStateTask, UPDATESTATE_TASK_NAME, UPDATESTATE_TASK_STACKSIZE, NULL, UPDATESTATE_TASK_PRI, NULL);
 
 
@@ -158,24 +184,24 @@ static void colorDeckInit()
     isr_flag_sens0 = false;
     isr_flag_sens1 = false;
 
-    //*init the hardware:
-    //TCA9548 color sensor
-    TCA_result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
-    if (TCA_result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
-    else{DEBUG_PRINT("Init of tca9548a successful\n");}
+    // //*init the hardware:
+    // //TCA9548 color sensor
+    // TCA_result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
+    // if (TCA_result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
+    // else{DEBUG_PRINT("Init of tca9548a successful\n");}
 
-    //select the correct channel for the i2c mux for initialization
-    tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
-    TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
-    if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
-    else{DEBUG_PRINT("Init of tcs34725 sens 0 successful\n");}
+    // //select the correct channel for the i2c mux for initialization
+    // tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
+    // TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
+    // if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
+    // else{DEBUG_PRINT("Init of tcs34725 sens 0 successful\n");}
     
-    // init second color sensor
-    // switching i2c channel
-    tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
-    TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
-    if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
-    else{DEBUG_PRINT("Init of tcs34725 sens 1 successful\n");}
+    // // init second color sensor
+    // // switching i2c channel
+    // tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
+    // TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
+    // if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
+    // else{DEBUG_PRINT("Init of tcs34725 sens 1 successful\n");}
 
     //init the circular buffer
     cbuf_color_recent = circular_buf_init(buffer_r, RECENT_COLOR_BUFFER_SIZE, cbuf_color_recent);
@@ -188,6 +214,26 @@ static void colorDeckInit()
 }
 
 
+void fskTask(void* parameters) {
+    // Wait for system to start
+    systemWaitStart();
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    //startup delay
+    TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
+    vTaskDelay(xDelay);
+    //run all the init of the FSK instance.
+    FSK_init(&fsk_instance);
+
+    DEBUG_PRINT("FSK is running! \n");
+    /**
+     * Make sure to run when ever data is avaiable to process 
+     * The time limit is FSK_samples / sampling frequency (16 ms when first written)
+    */
+    while (1) {
+        vTaskDelayUntil(&xLastWakeTime, M2T(FSK_TASK_TASK_DELAY_UNTIL));
+        FSK_update(&fsk_instance);
+    }
+}
 
 //Interrupt Service Routines (NOTE for now called using GPIO polling)
 /**
@@ -223,7 +269,7 @@ void readAndProcessColorSensorsIfDataAvaiable() {
         processRawData(&tcs34725_data_struct0);
         //for processing the delta data. We need 2 new available samples and we set this parameter to indicate so.
         new_data_flag0 = true;
-        DEBUG_PRINT("s0: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
+        // DEBUG_PRINT("s0: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
     }
 
     //check interrupt flag sens 1 and amount of samples aready taken.
@@ -234,7 +280,7 @@ void readAndProcessColorSensorsIfDataAvaiable() {
         processRawData(&tcs34725_data_struct1);
         //for processing the delta data. We need 2 new available samples and we set this parameter to indicate so.
         new_data_flag1 = true;
-        DEBUG_PRINT("s1: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
+        // DEBUG_PRINT("s1: %u\n", (unsigned int)tcs34725_data_struct0.rgb_raw_data.c);
 
     }
 }
@@ -247,16 +293,16 @@ void processDeltaColorSensorData() {
     //we have new data on both sensor now we process the data
     processDeltaData(&tcs34725_data_struct0, &tcs34725_data_struct1);
     // DEBUG_PRINT("Processed delta DATA");
-
     // printTheData(&tcs34725_data_struct0, &tcs34725_data_struct1);
 }
 
 /**
- * Listener to the GPIO pins
- * Todo This function is a replacement for an pin attached ISR on the rising edge. a To-do for later implementations
- * For now it polls the status of the pins and if the conditions are matched we set the flag.
+ * Deck tick task, runs every ms (fasted freeRTOS option)
+ * Runs time critical tasks and sets flags or performs short data read and writes.
+ * All longer function implementations should be placed in the relevant system tasks
+ * as for example an Update() function.
  */
-void gpioMonitorTask(void* arg){
+void colorDeckTickTask(void* arg){
     // Wait for system to start
     systemWaitStart();
     // the last time the function was called
@@ -266,9 +312,17 @@ void gpioMonitorTask(void* arg){
     vTaskDelay(xDelay);
 
     while(1) {
-        //check every 10 system ticks
-        vTaskDelayUntil(&xLastWakeTime, M2T(10));
-        // DEBUG_PRINT("detecting GPIO LEVELS\n");        
+        vTaskDelayUntil(&xLastWakeTime, M2T(COLORDECKTICK_TASK_DELAY_UNTIL));
+        /**
+         * Frequency readout for the Frequency shift keying every ms.
+        */
+        FSK_tick(&fsk_instance);
+    
+        /**
+         * Listener to the GPIO pins
+         * This function is a replacement for an pin attached ISR on the rising edge. a to-do for later implementations
+         * For now it polls the status of the pins and if the conditions are matched we set the flag.
+         */
         if (!isr_flag_sens0 && !((uint8_t) digitalRead(TCS34725_0_INT_GPIO_PIN))){
             isr_sens0();
             // DEBUG_PRINT("Sens0: int pin low detected.\n");
@@ -298,9 +352,8 @@ void updateStateTask(void* arg){
 
     while(1) {
         //Do every x mili seconds
-        const int tick_time_in_ms = 2;
-        vTaskDelayUntil(&xLastWakeTime, M2T(tick_time_in_ms));
-        particle_filter_tick(tick_time_in_ms);
+        vTaskDelayUntil(&xLastWakeTime, M2T(UPDATESTATE_TASK_DELAY_UNTIL));
+        particle_filter_tick(UPDATESTATE_TASK_DELAY_UNTIL, xTaskGetTickCount());
     }
 }
 
@@ -314,11 +367,11 @@ int8_t AverageCollorClassification(uint8_t * colorDetected, cbuf_handle_t cbuf){
     //put the classified color in the buffer at the newest spot
     int action_result = 0;
     //This overwrites the oldest element in the array.
-    circular_buf_put(cbuf, *colorDetected);
+    circular_buf_put(cbuf, (uint16_t) *colorDetected);
 
     // temp to keep the circular buffer result
-    uint8_t compareToThisColor;
-    uint8_t temp_compare;
+    uint16_t compareToThisColor;
+    uint16_t temp_compare;
 
     for (uint8_t i = 0; i < RECENT_COLOR_BUFFER_SIZE; i++)
     {
@@ -342,7 +395,7 @@ int8_t AverageCollorClassification(uint8_t * colorDetected, cbuf_handle_t cbuf){
             }
         }
     }
-    // DEBUG_PRINT("\n");
+
     //return valid if no errors occured
     if (action_result == 0){
         return 1;
@@ -361,9 +414,9 @@ void colorDeckTask(void* arg){
     const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
 
-    //we reset the device because sometimes it stays hanging in the interrupt low state.
-    reset_tcs34725_sensor(&tcs34725_data_struct0, &tcs34725_handle_sens0, &tca9548a_handle);
-    reset_tcs34725_sensor(&tcs34725_data_struct1, &tcs34725_handle_sens1, &tca9548a_handle);
+    // //we reset the device because sometimes it stays hanging in the interrupt low state.
+    // reset_tcs34725_sensor(&tcs34725_data_struct0, &tcs34725_handle_sens0, &tca9548a_handle);
+    // reset_tcs34725_sensor(&tcs34725_data_struct1, &tcs34725_handle_sens1, &tca9548a_handle);
 
     //if we find a new color we update this parameter, this is then passed on to other systems
     static uint8_t previous_classified_color = NUMBER_OF_COLORS;
@@ -371,11 +424,9 @@ void colorDeckTask(void* arg){
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
-        //run loop every 100 ms
-        vTaskDelayUntil(&xLastWakeTime, M2T(25));
-
+        //run loop every COLORDECK_TASK_DELAY_UNTIL ms
+        vTaskDelayUntil(&xLastWakeTime, M2T(COLORDECK_TASK_DELAY_UNTIL));
         // DEBUG_PRINT("HB\n");
-
         //we read the sensor data if the interrupt pins of the color sensors have been detected low.
         //flag will be set if new data is avaiable
         readAndProcessColorSensorsIfDataAvaiable();
@@ -409,7 +460,7 @@ void colorDeckTask(void* arg){
                     }
                 }
             }else{
-                DEBUG_PRINT("WARNING invalid classification case encountered");
+                // DEBUG_PRINT("WARNING invalid classification case encountered");
             }
             //set flags to 0 ready for the new measurement
             new_data_flag0 = false;
@@ -472,3 +523,10 @@ LOG_GROUP_START(COLORDECKDATA)
                 LOG_ADD_CORE(LOG_UINT32, time1, &tcs34725_data_struct0.time)
 
 LOG_GROUP_STOP(COLORDECKDATA)
+
+// PARAM_GROUP_START(send_command_to_drone)
+//   /**
+//  * @brief signalling what command was send to the drone
+//  */
+//     PARAM_ADD(PARAM_FLOAT, motion_commanding_blabla, &new_recieved_command)
+// PARAM_GROUP_STOP(send_command_to_drone)

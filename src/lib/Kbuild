@@ -70,3 +70,9 @@ obj-y += Custom_Libs/Particle_Filter_lib/src/Particle_filter.o
 #random number generator
 obj-y += Custom_Libs/Gen_Norm_lib/src/gen_norm.o
 obj-y += Custom_Libs/Gen_Norm_lib/src/tm_stm32f4_rng.o
+
+#FSK instance
+obj-y += Custom_Libs/FSK_lib/src/fsk.o
+
+#digital filtering
+obj-y += Custom_Libs/Digital_Filtering_lib/src/digital_filters.o
