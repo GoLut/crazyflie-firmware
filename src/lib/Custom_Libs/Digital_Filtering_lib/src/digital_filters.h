@@ -11,7 +11,9 @@ float high_pass_EWMA(float x_0, float x_1, float y_1, float b);
 
 float high_pass_butter_1st(float x_0, float x_1, float y_1);
 float high_pass_butter_1st_vel(float x_0, float x_1, float y_1);
+float high_pass_butter_1st_pos(float x_0, float x_1, float y_1);
 float high_pass_butter_2st(float x_0, float x_1, float x_2, float y_1, float y_2);
+float high_pass_butter_2st_pos(float x_0, float x_1, float x_2, float y_1, float y_2);
 
 float low_pass_butter_1st(float x_0, float x_1, float y_1);
 

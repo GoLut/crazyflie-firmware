@@ -25,7 +25,7 @@
 
 
 //The numbers of samples used every FFT conversion
-#define FSK_SAMPLES 16 //only 16, 64, 256, 1024. are supported
+#define FSK_SAMPLES 64 //only 16, 64, 256, 1024. are supported
 //Because the crazyflie only supports the complex fft arm functions we need to use a buffer twice the size
 #define FSK_SAMPLE_BUFFER_SIZE 2*FSK_SAMPLES
 //the ARM fft implementation requires a size to be given

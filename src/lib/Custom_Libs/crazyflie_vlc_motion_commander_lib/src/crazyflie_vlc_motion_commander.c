@@ -1,31 +1,3 @@
-/**
- * ,---------,       ____  _ __
- * |  ,-^-,  |      / __ )(_) /_______________ _____  ___
- * | (  O  ) |     / __  / / __/ ___/ ___/ __ `/_  / / _ \
- * | / ,--´  |    / /_/ / / /_/ /__/ /  / /_/ / / /_/  __/
- *    +------`   /_____/_/\__/\___/_/   \__,_/ /___/\___/
- *
- * Crazyflie control firmware
- *
- * Copyright (C) 2019 Bitcraze AB
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, in version 3.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * push.c - App layer application of the onboard push demo. The crazyflie 
- * has to have the multiranger and the flowdeck version 2.
- */
-
 #include "crazyflie_vlc_motion_commander.h"
 
 #include "commander.h"
@@ -87,7 +59,11 @@ typedef enum {
     c_left = 5,
     c_right = 6,
     c_forward = 7,
-    c_backward = 8
+    c_backward = 8,
+    c_take_off = 9,
+    c_land = 10,
+    c_PF_ENABLE = 11,
+    c_PF_DISABLE = 12
 } FlightCommand;
 
 //static variable only accesable from this file but acceable by the whole file
@@ -187,7 +163,7 @@ void _VLC_flight_commander(FlightCommand command){
 
 void vlc_motion_commander_parce_command_byte(uint8_t command){
     //parce and place the correct command in the buffer
-    DEBUG_PRINT("Recieved byte from fsk link placing it in c_buffer \n");
+    DEBUG_PRINT("Recieved byte from fsk link placing it in c_buffer: %d \n", (int16_t) command);
     circular_buf_put(cbuf_commands, (uint16_t)command);
 }
 

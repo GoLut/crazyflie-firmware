@@ -96,6 +96,8 @@ cbuf_handle_t cbuf_color_recent = &cbufCR;
 
 //FSK
 FSK_instance fsk_instance = {0};
+// static float new_recieved_command = 0; //idle
+
 
 /**
  * Read the information recieved from the TCS color sensors and saves this in the sensor struct. 
@@ -208,7 +210,7 @@ static void colorDeckInit()
     particle_filter_init();
 
     //init the VLC motion commander:
-    // VLC_motion_commander_init();
+    VLC_motion_commander_init();
 
     // we are done init
     isInit = true;
@@ -354,7 +356,7 @@ void updateStateTask(void* arg){
     while(1) {
         //Do every x mili seconds
         vTaskDelayUntil(&xLastWakeTime, M2T(UPDATESTATE_TASK_DELAY_UNTIL));
-        particle_filter_tick(UPDATESTATE_TASK_DELAY_UNTIL);
+        particle_filter_tick(UPDATESTATE_TASK_DELAY_UNTIL, xTaskGetTickCount());
     }
 }
 
@@ -481,7 +483,7 @@ void colorDeckTask(void* arg){
         /**
         * Update the motion commander in this section.
         */ 
-        // VLC_motion_commander_update(xTaskGetTickCount());
+        VLC_motion_commander_update(xTaskGetTickCount());
 
     }
 }
@@ -533,3 +535,10 @@ LOG_GROUP_START(COLORDECKDATA)
                 LOG_ADD_CORE(LOG_UINT32, time1, &tcs34725_data_struct0.time)
 
 LOG_GROUP_STOP(COLORDECKDATA)
+
+// PARAM_GROUP_START(send_command_to_drone)
+//   /**
+//  * @brief signalling what command was send to the drone
+//  */
+//     PARAM_ADD(PARAM_FLOAT, motion_commanding_blabla, &new_recieved_command)
+// PARAM_GROUP_STOP(send_command_to_drone)

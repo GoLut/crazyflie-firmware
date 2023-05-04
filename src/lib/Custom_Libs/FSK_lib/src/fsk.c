@@ -306,24 +306,21 @@ void FSK_read_ADC_value_and_put_in_buffer(FSK_instance* fsk){
         float32_t y_raw = (float32_t)analogRead(FSK_ANALOGE_READ_PIN);
 
         float32_t y_average_0 = low_pass_EWMA_f32(y_raw, y_average_1, alpha);
-
-        float32_t error_margin = 650; //based on arduino measurements
-
-
-        //removes excessive large spikes form the measurements, by setting them to the mean value
-        //these spikes are caused by the IR beacons used by the lighthosue system. they mess up the communication protocal.
+        float32_t error_margin = 650; //based on drone measurements
+        
+        // removes excessive large spikes form the measurements, by setting them to the mean value
+        // these spikes are caused by the IR beacons used by the lighthosue system. they mess up the communication protocal.
         float32_t y_corrected = y_raw;
         if((y_raw> y_average_0 + error_margin) || (y_raw < y_average_0 -error_margin)){
             y_corrected = y_average_0;
         }
 
         // DEBUG_PRINT("Analog read: raw: %f, EWMA_average: %f, Filtered: %f \n", (double)y_raw, (double)y_average_0, (double) y_corrected);
-
-        //set the t-1 output value. for the EWMA
+        // //set the t-1 output value. for the EWMA
         y_average_1 = y_average_0;
 
         //save the result in the buffers
-        FSK_buffer_put(&fsk->buff, y_raw);
+        FSK_buffer_put(&fsk->buff, y_corrected);
 
         //For debugging we read form this buffer
         if (counter == 10){
@@ -518,7 +515,7 @@ void FSK_process_found_majority_frequency_and_save_byte_if_full(FSK_instance* fs
     //No match found with the correct frequency reset the fsk byte read
     else{
         // DEBUG_PRINT("No valid freq reset %d.\n", majority_frequency);
-        // for (int i = 0; i < 5; i++)
+        // for (int i = 0; i < FSK_RECENT_FREQUENCY_BUFFER_SIZE; i++)
         // {
         //     uint16_t temp;
         //     circular_buf_peek(cbuf_freq_recent, &temp, i);
@@ -559,11 +556,11 @@ void FSK_update(FSK_instance* fsk){
         //   DEBUG_PRINT("IV \n");  
         }
         /** 
-        * Do this every 5 succesfull frequency samples.
-        * A single bit will be send as 5 time intervals each of length FSK_SAMPLES
+        * Do this every FSK_RECENT_FREQUENCY_BUFFER_SIZE succesfull frequency samples.
+        * A single bit will be send as FSK_RECENT_FREQUENCY_BUFFER_SIZE time intervals each of length FSK_SAMPLES
         * Therefore a majority will always occur even if the window of 5x sampling does not precicly allign
         */
-        if (FFT_count == 5){
+        if (FFT_count == FSK_RECENT_FREQUENCY_BUFFER_SIZE){
             //get the majority frequency
             majority_frequency = obtain_majority_frequency_from_cBuf(cbuf_freq_recent);
             FFT_count = 0;
