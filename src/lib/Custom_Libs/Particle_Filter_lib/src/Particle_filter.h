@@ -27,7 +27,9 @@ typedef enum {
     c_forward = 7,
     c_backward = 8,
     c_take_off = 9,
-    c_land = 10
+    c_land = 10,
+    c_PF_ENABLE = 11,
+    c_PF_DISABLE = 12
 } FlightCommand;
 
 typedef enum {
