@@ -10,7 +10,7 @@
 
 
 #define UPDATE_TIME_INTERVAL_PARTICLE_POS 2 //ms
-#define PARTICLE_FILTER_NUM_OF_PARTICLES 10
+#define PARTICLE_FILTER_NUM_OF_PARTICLES 150
 
 #define NUMBER_OF_COLORS 7
 
@@ -121,6 +121,10 @@ typedef struct MotionModelParticles
     uint8_t new_recieved_command;
     //The type of command send
     paramVarId_t id_new_command_param;
+    paramVarId_t motion_model_status_param;
+
+    //the motion model is active or not (allows us to move into the grid)
+    uint8_t isMotionModelActive;
 
     //The different stages of executing a command.
     FlightManuvreStage new_command_has_been_executed;

@@ -422,10 +422,6 @@ void resample_particles(){
 }
 
 
-
-
-
-
 /**
  * Takes Accelerometer data and updates the motion model data.
  * This algorithm is based on the model described in the research paper (thesis)
@@ -599,7 +595,6 @@ void init_motion_model_particle(MotionModelParticle* p){
     p->v_z_f_ = 0;
     p->new_command_has_been_executed = stage_idle;
     p->recieved_color_ID_name = 0;
-
     //set exponential weighted highpass filter parameter:
     // p->b = 0.0015f;
     p->a = 0.0001f;
@@ -627,17 +622,20 @@ void init_motion_model_particle(MotionModelParticle* p){
     motion_model_particle.id_roll_state_estimate = logGetVarId("stateEstimate", "roll");
 
     //get the most recent send command
+     //this is here because adding a new parameter crashed the drone.
     motion_model_particle.id_new_command_param = paramGetVarId("ring", "solidBlue");
     //we set it right away because default is like 20 or something
     paramSetInt(motion_model_particle.id_new_command_param, 0);
+    p->isMotionModelActive = 0;
+    
+    //the led flight deck parameter we are using to enable and disable the motion model
+    //this is here because adding a new parameter crashed the drone.
+    motion_model_particle.motion_model_status_param = paramGetVarId("ring", "solidRed");
+    //set the motion model to be fase
+    paramSetInt(motion_model_particle.motion_model_status_param, 0);
 
-    // motion_model_particle.id_recieved_command_param = paramGetVarId("ring", "solidGreen");
-
-
-    // motion_model_particle.id_acc_x = logGetVarId("acc", "x");
-    // motion_model_particle.id_acc_y = logGetVarId("acc", "y");
-    // motion_model_particle.id_acc_z = logGetVarId("acc", "z");
-
+    //Get the crazyflie lighthouse status and system can fly status indicators
+    //These are used for calibration purposes
     motion_model_particle.syscanfly = logGetVarId("sys", "canfly");
     motion_model_particle.lighthouse_status = logGetVarId("lighthouse", "status");
 
@@ -861,43 +859,48 @@ void particle_filter_tick(int tick_time_in_ms, uint32_t sys_time_ms){
     if ((!particle_filter_inited) || (!motion_model_particle.calibrated)) {
         return;
     }
-    // we update a single particle based on the motion data
 
-    //check if we have recieved a new command
-    if(have_we_recieved_new_flight_motion_command(&motion_model_particle)){
-        motion_model_particle.time_since_last_command = sys_time_ms;
-    }
+    //check if we are allowed to do anything on the motion model side
+    motion_model_particle.isMotionModelActive = paramGetUint(motion_model_particle.motion_model_status_param);
+    //Only do stuff when we activate the motion model
+    if(motion_model_particle.isMotionModelActive){
+        // we update a single particle based on the motion data
+        //check if we have recieved a new command
+        if(have_we_recieved_new_flight_motion_command(&motion_model_particle)){
+            motion_model_particle.time_since_last_command = sys_time_ms;
+        }
 
-    if(do_we_allow_motion_model_updates(&motion_model_particle, sys_time_ms)){
-        perform_motion_model_step(&motion_model_particle, ((float)tick_time_in_ms)/1000.0f, motion_model_particle.current_active_flight_axis);
-    }
-    else{
-        motion_model_particle.v_x = 0;
-        motion_model_particle.v_y = 0;
-        motion_model_particle.v_z = 0;
-        motion_model_particle.v_x_ = 0;
-        motion_model_particle.v_y_ = 0;
-        motion_model_particle.v_z_ = 0;
-        motion_model_particle.v_x_f = 0;
-        motion_model_particle.v_y_f = 0;
-        motion_model_particle.v_z_f = 0;
-        motion_model_particle.v_x_f_ = 0;
-        motion_model_particle.v_y_f_ = 0;
-        motion_model_particle.v_z_f_ = 0;
+        if(do_we_allow_motion_model_updates(&motion_model_particle, sys_time_ms)){
+            perform_motion_model_step(&motion_model_particle, ((float)tick_time_in_ms)/1000.0f, motion_model_particle.current_active_flight_axis);
+        }
+        else{
+            motion_model_particle.v_x = 0;
+            motion_model_particle.v_y = 0;
+            motion_model_particle.v_z = 0;
+            motion_model_particle.v_x_ = 0;
+            motion_model_particle.v_y_ = 0;
+            motion_model_particle.v_z_ = 0;
+            motion_model_particle.v_x_f = 0;
+            motion_model_particle.v_y_f = 0;
+            motion_model_particle.v_z_f = 0;
+            motion_model_particle.v_x_f_ = 0;
+            motion_model_particle.v_y_f_ = 0;
+            motion_model_particle.v_z_f_ = 0;
 
-        //while we are not moving do a moving average calibration (especialy required for the X axis)
-        float x_n = logGetFloat(motion_model_particle.id_acc_x);
-        float y_n = logGetFloat(motion_model_particle.id_acc_y);
-        float z_n = logGetFloat(motion_model_particle.id_acc_z);
-        
-        //calculate exponential weighted moving average
-        motion_model_particle.a_x_cali = EWMA(x_n, motion_model_particle.alpha, motion_model_particle.a_x_cali);
-        motion_model_particle.a_y_cali = EWMA(y_n, motion_model_particle.alpha, motion_model_particle.a_y_cali);
-        motion_model_particle.a_z_cali = EWMA(z_n, motion_model_particle.alpha, motion_model_particle.a_z_cali);
-        //keep increasing steps else a movement may be pushed to the particles verry late
-        //and the random noise will not be apllied 
-        motion_model_particle.motion_model_step_counter++;
+            //while we are not moving do a moving average calibration (especialy required for the X axis)
+            float x_n = logGetFloat(motion_model_particle.id_acc_x);
+            float y_n = logGetFloat(motion_model_particle.id_acc_y);
+            float z_n = logGetFloat(motion_model_particle.id_acc_z);
+            
+            //calculate exponential weighted moving average
+            motion_model_particle.a_x_cali = EWMA(x_n, motion_model_particle.alpha, motion_model_particle.a_x_cali);
+            motion_model_particle.a_y_cali = EWMA(y_n, motion_model_particle.alpha, motion_model_particle.a_y_cali);
+            motion_model_particle.a_z_cali = EWMA(z_n, motion_model_particle.alpha, motion_model_particle.a_z_cali);
+            //keep increasing steps else a movement may be pushed to the particles verry late
+            //and the random noise will not be apllied 
+            motion_model_particle.motion_model_step_counter++;
 
+        }
     }
 
 }
@@ -909,7 +912,6 @@ void particle_filter_tick(int tick_time_in_ms, uint32_t sys_time_ms){
 ! WARNING: to prevent Race conditions steps 1 and 2 have to be performed sequentially in the same RTOS task 
 */
 void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
-    
     //Colors 0-("NUMBER_OF_COLORS"-1) are valid colors , "NUMBER_OF_COLORS" is invalid color
     static uint8_t last_recieved_color_ID = NUMBER_OF_COLORS;
     static uint8_t all_particles_have_wrong_color_counter = 0;
@@ -932,55 +934,59 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
         return;
     }
 
-    //* Resampling happens when:
-    //      (New Color data is recieved.   OR   A set time interval has passed).
-    //              AND    recieved_color_ID != NUMBER_OF_COLORS
-    if(
-        ((last_recieved_color_ID != recieved_color_ID)
-            ||((time_since_last_resample + UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE) < sys_time_ms))
-        &&(recieved_color_ID != NUMBER_OF_COLORS)
-    ){
-        //perform the resample sequence
-        determine_expected_color_for_all_particles();
-        uint16_t particles_with_wrong_color_count =  set_particle_probability(last_recieved_color_ID);
+    //we only do something when we activate the motion model 
+    if(motion_model_particle.isMotionModelActive){
 
-        //if all particles have the wrong collor scatter the particles to a uniform distibution
-        // if not then perform a normal resample procedure
-        if (particles_with_wrong_color_count < PARTICLE_FILTER_NUM_OF_PARTICLES){
-                resample_particles();
-                all_particles_have_wrong_color_counter = 0;
-        }else{
-            all_particles_have_wrong_color_counter ++;
-            if(all_particles_have_wrong_color_counter == 2){
-                reset_probability_and_particle_distribution();
+        //* Resampling happens when:
+        //      (New Color data is recieved.   OR   A set time interval has passed).
+        //              AND    recieved_color_ID != NUMBER_OF_COLORS
+        if(
+            ((last_recieved_color_ID != recieved_color_ID)
+                ||((time_since_last_resample + UPDATE_TIME_INTERVAL_PARTICLE_RESAMPLE) < sys_time_ms))
+            &&(recieved_color_ID != NUMBER_OF_COLORS)
+        ){
+            //perform the resample sequence
+            determine_expected_color_for_all_particles();
+            uint16_t particles_with_wrong_color_count =  set_particle_probability(last_recieved_color_ID);
+
+            //if all particles have the wrong collor scatter the particles to a uniform distibution
+            // if not then perform a normal resample procedure
+            if (particles_with_wrong_color_count < PARTICLE_FILTER_NUM_OF_PARTICLES){
+                    resample_particles();
+                    all_particles_have_wrong_color_counter = 0;
+            }else{
+                all_particles_have_wrong_color_counter ++;
+                if(all_particles_have_wrong_color_counter == 2){
+                    reset_probability_and_particle_distribution();
+                }
             }
+            
+            //update mean location estimate:
+            calculate_mean_particle_location(&motion_model_particle);
+            //sync the locations such that the visualisation interface can be updated
+            sync_int16_particle_locations();
+
+            //update conditional parameters
+            time_since_last_resample = sys_time_ms;
+            last_recieved_color_ID = recieved_color_ID;
+
+            DEBUG_PRINT("performing particle resample to ID: %d \n", colorIDMapping[recieved_color_ID]);
         }
-        
-        //update mean location estimate:
-        calculate_mean_particle_location(&motion_model_particle);
-        //sync the locations such that the visualisation interface can be updated
-        sync_int16_particle_locations();
 
-        //update conditional parameters
-        time_since_last_resample = sys_time_ms;
-        last_recieved_color_ID = recieved_color_ID;
+        /**
+         * After N Motion model steps we would like to update all particles.
+        */
+        if((motion_model_particle.motion_model_step_counter > UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS)
+        && ((boot_delay + 8000) < sys_time_ms)) {
+            // DEBUG_MOTION_PARTICLE(&motion_model_particle);
+            apply_motion_model_update_to_all_particles(&motion_model_particle);
+            
+            calculate_mean_particle_location(&motion_model_particle);
+            
+            //sync the locations such that the visualisation interface can be updated
+            sync_int16_particle_locations();
 
-        DEBUG_PRINT("performing particle resample to ID: %d \n", colorIDMapping[recieved_color_ID]);
-    }
-
-    /**
-     * After N Motion model steps we would like to update all particles.
-    */
-    if((motion_model_particle.motion_model_step_counter > UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS)
-     && ((boot_delay + 8000) < sys_time_ms)) {
-        // DEBUG_MOTION_PARTICLE(&motion_model_particle);
-        apply_motion_model_update_to_all_particles(&motion_model_particle);
-        
-        calculate_mean_particle_location(&motion_model_particle);
-        
-        //sync the locations such that the visualisation interface can be updated
-        sync_int16_particle_locations();
-
+        }
     }
     
 }
