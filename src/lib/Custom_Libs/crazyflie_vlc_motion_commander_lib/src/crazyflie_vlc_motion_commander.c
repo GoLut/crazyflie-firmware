@@ -120,12 +120,14 @@ void VLC_motion_command_idle(){
 
 void unlock_VLC_motion_command(){
     DEBUG_PRINT("Motion command is unlocked and idle \n");
+    paramSetInt(vlc_flight_status_param, 1);
     state = s_idle;
 }
 
 void lock_VLC_motion_command(){
     //first set the motion to zero;
     VLC_motion_command_idle();
+    paramSetInt(vlc_flight_status_param, 0);
     state = s_locked;
     DEBUG_PRINT("Motion command is set idle and locked \n");
 
@@ -232,25 +234,30 @@ void _VLC_flight_commander(FlightCommand command){
         //ideling so we can recieve the next command
         state = s_idle;
         //set motion model to be active
+        DEBUG_PRINT("Enabling PF \n");
         paramSetInt(motion_model_status_param, 1);
+        break;
 
     case c_PF_DISABLE:
         //ideling so we can recieve the next command
         state = s_idle;
+        DEBUG_PRINT("Disabeling PF \n");
         //set motion model to be inactive
         paramSetInt(motion_model_status_param, 0);
 
-
+        break;
     case c_VLC_FLIGHT_ENABLE:
         //ideling so we can recieve the next command
         state = s_idle;
         //set vlc flight to be active
+        DEBUG_PRINT("Enabling VLC Flight \n");
         paramSetInt(vlc_flight_status_param, 1);
         // unlock_VLC_motion_command();
         break;
     case c_VLC_FLIGHT_DISABLE:
         //ideling so we can recieve the next command
         state = s_idle;
+        DEBUG_PRINT("Disabeling VLC Flight \n");
         //set vlc flight to be inactive
         paramSetInt(vlc_flight_status_param, 0);
         // lock_VLC_motion_command();
