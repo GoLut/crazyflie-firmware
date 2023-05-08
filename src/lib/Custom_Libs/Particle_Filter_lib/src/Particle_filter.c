@@ -634,6 +634,11 @@ void init_motion_model_particle(MotionModelParticle* p){
     //set the motion model to be fase
     paramSetInt(motion_model_particle.motion_model_status_param, 0);
 
+    //checks if we are allowed to execute commands recieved on the vlc link
+    motion_model_particle.vlc_flight_status_param = paramGetVarId("ring", "solidGreen");
+    paramSetInt(motion_model_particle.vlc_flight_status_param, 0);
+
+
     //Get the crazyflie lighthouse status and system can fly status indicators
     //These are used for calibration purposes
     motion_model_particle.syscanfly = logGetVarId("sys", "canfly");
@@ -684,7 +689,7 @@ void apply_motion_model_update_to_all_particles(MotionModelParticle* mp){
 
 void reset_probability_and_particle_distribution(){
     //itterate over all particles and initialize the values
-    DEBUG_PRINT("Resetting: particels and probability distribution");
+    DEBUG_PRINT("Resetting: particels and probability distribution \n");
     //set a linspace distribution
     set_inital_linspace_particle_distibution();
     for (uint32_t i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++)
@@ -716,6 +721,7 @@ void particle_filter_init(){
 //we have recieved a new command an will allow for motion in the motion model
 bool have_we_recieved_new_flight_motion_command(MotionModelParticle* p){
     
+
     //recieve latest param
     p->new_recieved_command = paramGetUint(p->id_new_command_param);
 
@@ -829,10 +835,12 @@ bool do_we_allow_motion_model_updates(MotionModelParticle *p, uint32_t sys_time_
             break;
             //the states that we ignore
             case c_idle:
-            case c_unlock:
-            case c_lock:
+            case c_vlc_link_ENABLE:
+            case c_vlc_link_DISABLE:
             case c_take_off:
             case c_land:
+            case c_VLC_FLIGHT_ENABLE:
+            case c_VLC_FLIGHT_DISABLE:
                 p->new_command_has_been_executed = true;
                 p->current_active_flight_axis = axis_none;
                 return false;

@@ -50,7 +50,9 @@
         "imu_types.h": "c",
         "stm32fxxx.h": "c",
         "semphr.h": "c",
-        "digital_filters.h": "c"
+        "digital_filters.h": "c",
+        "crazyflie_vlc_motion_commander.h": "c",
+        "driver_tcs34725_interface.h": "c"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }
