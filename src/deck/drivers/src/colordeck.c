@@ -184,24 +184,24 @@ static void colorDeckInit()
     isr_flag_sens0 = false;
     isr_flag_sens1 = false;
 
-    // //*init the hardware:
-    // //TCA9548 color sensor
-    // TCA_result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
-    // if (TCA_result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
-    // else{DEBUG_PRINT("Init of tca9548a successful\n");}
+    //*init the hardware:
+    //TCA9548 color sensor
+    TCA_result = (uint8_t) tca9548a_basic_init(&tca9548a_handle);
+    if (TCA_result != 0){DEBUG_PRINT("ERROR: Init of tca9548a Unsuccesfull\n");}
+    else{DEBUG_PRINT("Init of tca9548a successful\n");}
 
-    // //select the correct channel for the i2c mux for initialization
-    // tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
-    // TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
-    // if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
-    // else{DEBUG_PRINT("Init of tcs34725 sens 0 successful\n");}
+    //select the correct channel for the i2c mux for initialization
+    tca9548a_basic_set_one_channel(TCS34725_SENS0_TCA9548A_CHANNEL, &tca9548a_handle);
+    TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 0, &tcs34725_handle_sens0);
+    if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 0 Unsuccessful\n");}
+    else{DEBUG_PRINT("Init of tcs34725 sens 0 successful\n");}
     
-    // // init second color sensor
-    // // switching i2c channel
-    // tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
-    // TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
-    // if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
-    // else{DEBUG_PRINT("Init of tcs34725 sens 1 successful\n");}
+    // init second color sensor
+    // switching i2c channel
+    tca9548a_basic_set_one_channel(TCS34725_SENS1_TCA9548A_CHANNEL, &tca9548a_handle);
+    TCS_result = tcs34725_interrupt_init(TCS34725_INTERRUPT_MODE_EVERY_RGBC_CYCLE, 10, 100, 1, &tcs34725_handle_sens1);
+    if (TCS_result != 0){DEBUG_PRINT("ERROR: Init of tcs34725 sens 1 unsuccessful\n");}
+    else{DEBUG_PRINT("Init of tcs34725 sens 1 successful\n");}
 
     //init the circular buffer
     cbuf_color_recent = circular_buf_init(buffer_r, RECENT_COLOR_BUFFER_SIZE, cbuf_color_recent);
@@ -417,9 +417,9 @@ void colorDeckTask(void* arg){
     const TickType_t xDelay = 1000; // portTICK_PERIOD_MS;
     vTaskDelay(xDelay);
 
-    // //we reset the device because sometimes it stays hanging in the interrupt low state.
-    // reset_tcs34725_sensor(&tcs34725_data_struct0, &tcs34725_handle_sens0, &tca9548a_handle);
-    // reset_tcs34725_sensor(&tcs34725_data_struct1, &tcs34725_handle_sens1, &tca9548a_handle);
+    //we reset the device because sometimes it stays hanging in the interrupt low state.
+    reset_tcs34725_sensor(&tcs34725_data_struct0, &tcs34725_handle_sens0, &tca9548a_handle);
+    reset_tcs34725_sensor(&tcs34725_data_struct1, &tcs34725_handle_sens1, &tca9548a_handle);
 
     //if we find a new color we update this parameter, this is then passed on to other systems
     static uint8_t previous_classified_color = NUMBER_OF_COLORS;
@@ -432,8 +432,8 @@ void colorDeckTask(void* arg){
         // DEBUG_PRINT("HB\n");
         //we read the sensor data if the interrupt pins of the color sensors have been detected low.
         
-        // //flag will be set if new data is avaiable
-        // readAndProcessColorSensorsIfDataAvaiable();
+        //flag will be set if new data is avaiable
+        readAndProcessColorSensorsIfDataAvaiable();
         
         if ((new_data_flag0 == true) && (new_data_flag1 == true)) {
             //When both sensors have new data available we process the delta

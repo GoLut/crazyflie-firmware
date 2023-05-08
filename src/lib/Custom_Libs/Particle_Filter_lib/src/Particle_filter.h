@@ -7,7 +7,7 @@
 #include "log.h"
 #include "param.h"
 
-
+#include "crazyflie_vlc_motion_commander.h"
 
 #define UPDATE_TIME_INTERVAL_PARTICLE_POS 2 //ms
 #define PARTICLE_FILTER_NUM_OF_PARTICLES 150
@@ -15,22 +15,6 @@
 #define NUMBER_OF_COLORS 7
 
 #define MAP_SIZE 8
-
-typedef enum {
-    c_idle = 0,
-    c_unlock = 1,
-    c_lock = 2,
-    c_up = 3,
-    c_down = 4,
-    c_left = 5,
-    c_right = 6,
-    c_forward = 7,
-    c_backward = 8,
-    c_take_off = 9,
-    c_land = 10,
-    c_PF_ENABLE = 11,
-    c_PF_DISABLE = 12
-} FlightCommand;
 
 typedef enum {
     stage_idle,
@@ -124,6 +108,7 @@ typedef struct MotionModelParticles
     //The type of command send
     paramVarId_t id_new_command_param;
     paramVarId_t motion_model_status_param;
+    paramVarId_t vlc_flight_status_param;
 
     //the motion model is active or not (allows us to move into the grid)
     uint8_t isMotionModelActive;
