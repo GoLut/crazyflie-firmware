@@ -32,7 +32,9 @@ static logVarId_t id_state_estimate_z;
 //the amount we would like to move when a command is recieved
 static float move_dist = 0.1f;
 static float take_off_height = 0;
-
+//here such that we can debug it :)
+static uint8_t last_recieved_command = 128;
+// 
 
 //Circular buffer to save the recieved commands colors:
 #define COMMAND_BUFFER_SIZE 20
@@ -209,7 +211,7 @@ void _VLC_flight_commander(FlightCommand command){
         //this will be used by the particle filter motion model
         paramSetInt(id_new_command_param, c_idle); 
         // DEBUG_PRINT("Idle \n");
-        // VLC_motion_command_idle();
+        VLC_motion_command_idle();
 
         break;
     case c_take_off:
@@ -276,6 +278,7 @@ void vlc_motion_commander_parce_command_byte(uint8_t command){
     //parce and place the correct command in the buffer
     DEBUG_PRINT("Recieved byte from fsk link placing it in c_buffer: %d \n", (int16_t) command);
     circular_buf_put(cbuf_commands, (uint16_t)command);
+    last_recieved_command = command;
 }
 
 void VLC_motion_commander_init(){
@@ -382,3 +385,7 @@ void VLC_motion_commander_update(uint32_t sys_time_ms){
         }
     }
 }
+
+LOG_GROUP_START(vlc_cmd)
+                LOG_ADD_CORE(LOG_UINT8, lrc, &last_recieved_command)
+LOG_GROUP_STOP(vlc_cmd)
