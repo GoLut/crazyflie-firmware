@@ -54,7 +54,7 @@ Fsk_logger fsk_log;
 
 
 #define FSK_F0 125
-#define FSK_F1 187
+#define FSK_F1 156
 
 enum frequency{
     f0 = 0,     // First FSK frequency bin
@@ -117,15 +117,15 @@ uint16_t get_current_frequency(FSK_instance* fsk, float32_t Input[]){
 
         /*set a noise floor*/
         //based on data (notion) a noise floor of 200 should remove the noise frequency detections:
-        // if (maxValue < 200){
-        //     // we return a DC value as this is never the frequency we are looking for.
-        //     return 0;
-        // }
+        if (maxValue < 400){
+            // we return a DC value as this is never the frequency we are looking for.
+            return 0;
+        }
 
         /* peak frequency calulation*/
         peakFrequency = (uint16_t)(maxIndex * FSK_SAMPLINGFREQ / FSK_SAMPLES);
 
-        // // // debug print
+        // // // // debug print
         // DEBUG_PRINT("V: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f]\n",
         // (double)(Output[0]), (double)(Output[1]), (double)(Output[2]), (double)(Output[3]),
         // (double)(Output[4]), (double)(Output[5]), (double)(Output[6]), (double)(Output[7])

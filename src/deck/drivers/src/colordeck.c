@@ -38,6 +38,8 @@ CLOAD_CMDS="-w radio://0/80/1M" make cload
 //particle filter
 #include "Particle_filter.h"
 
+#include "stm32f4xx.h"
+
 
 // RTOS new TASKS
 #define COLORDECK_TASK_STACKSIZE  (7*configMINIMAL_STACK_SIZE) 
@@ -98,6 +100,38 @@ cbuf_handle_t cbuf_color_recent = &cbufCR;
 FSK_instance fsk_instance = {0};
 // static float new_recieved_command = 0; //idle
 
+
+// Define the static variable to be incremented in the interrupt
+static uint32_t ISR_counter = 0;
+
+void TIM6_DAC_IRQHandler(void) {
+    // Clear the interrupt flag
+    TIM6->SR &= ~TIM_SR_UIF;
+
+    //sample the adc
+    FSK_tick(&fsk_instance);
+
+    // Increment the counter
+    ISR_counter++;
+}
+
+void initTimer2Interrupt(){
+    // Enable the clock for TIM6
+    RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
+    
+    // Configure TIM6 to run at 10 kHz (100 us period)
+    TIM6->PSC = 3;   // 160 MHz / (1+1) = 80 MHz
+    TIM6->ARR = 9999;   // 80 MHz / (999+1) = 8000 Hz (100 us period)
+    TIM6->RCR = 0; // 10KHz/1 = 10kHz
+    
+    // Enable the interrupt for TIM6
+    TIM6->DIER |= TIM_DIER_UIE;
+    NVIC_EnableIRQ(TIM6_DAC_IRQn);
+    
+    // Start the timer
+    TIM6->CR1 |= TIM_CR1_CEN;
+
+}
 
 /**
  * Read the information recieved from the TCS color sensors and saves this in the sensor struct. 
@@ -212,6 +246,9 @@ static void colorDeckInit()
     //init the VLC motion commander:
     VLC_motion_commander_init();
 
+    //interrupt timer for ADC readout
+    initTimer2Interrupt();
+
     // we are done init
     isInit = true;
 }
@@ -316,10 +353,12 @@ void colorDeckTickTask(void* arg){
 
     while(1) {
         vTaskDelayUntil(&xLastWakeTime, M2T(COLORDECKTICK_TASK_DELAY_UNTIL));
+        // uint32_t temp = ISR_counter;
+        // DEBUG_PRINT("count: %lu\n", temp);
         /**
          * Frequency readout for the Frequency shift keying every ms.
         */
-        FSK_tick(&fsk_instance);
+        // FSK_tick(&fsk_instance);
     
         /**
          * Listener to the GPIO pins
@@ -429,7 +468,6 @@ void colorDeckTask(void* arg){
     while (1) {
         //run loop every COLORDECK_TASK_DELAY_UNTIL ms
         vTaskDelayUntil(&xLastWakeTime, M2T(COLORDECK_TASK_DELAY_UNTIL));
-        // DEBUG_PRINT("HB\n");
         //we read the sensor data if the interrupt pins of the color sensors have been detected low.
         
         //flag will be set if new data is avaiable
