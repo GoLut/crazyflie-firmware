@@ -42,6 +42,7 @@
 
 typedef struct Fsk_loggers{
     float32_t read_value;
+    uint8_t last_recieved_byte;
 }Fsk_logger;
 
 
@@ -51,6 +52,7 @@ circular_buf_t cbufFR;
 cbuf_handle_t cbuf_freq_recent = &cbufFR;
 
 Fsk_logger fsk_log;
+
 
 
 #define FSK_F0 125
@@ -454,6 +456,7 @@ void queue_command(uint8_t command, void( *callback_process_command)(uint8_t)){
  * Finnaly stores the recieved command packet in a buffer to be executed later.
 */
 void parse_data_byte(uint8_t data_byte){
+    fsk_log.last_recieved_byte = data_byte;
     //check validity first
     if(!check_parity_validity(data_byte)){
         DEBUG_PRINT("Error detected in received packet\n");
@@ -581,4 +584,5 @@ void FSK_update(FSK_instance* fsk){
 LOG_GROUP_START(FSKLOGGING)
                 //the raw RGB values of the sensors
                 LOG_ADD_CORE(LOG_FLOAT, value, &fsk_log.read_value)
+                LOG_ADD_CORE(LOG_UINT8, B0, &fsk_log.last_recieved_byte)
 LOG_GROUP_STOP(FSKLOGGING)

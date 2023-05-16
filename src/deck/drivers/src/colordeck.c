@@ -100,6 +100,9 @@ cbuf_handle_t cbuf_color_recent = &cbufCR;
 FSK_instance fsk_instance = {0};
 // static float new_recieved_command = 0; //idle
 
+//for logging purposes such that we can differentiate between color measurements
+static uint16_t revieved_color_counter = 0;
+
 
 // Define the static variable to be incremented in the interrupt
 static uint32_t ISR_counter = 0;
@@ -497,6 +500,8 @@ void colorDeckTask(void* arg){
                     //We can do this because the pattern guarentees a unique color is next.
                     //This sequence is then saved in a buffer for future use.
                     DEBUG_PRINT("AVERAGEFOUND: %d \n", KNNColorIDsUsedMapping[classificationID]);
+                    
+                    revieved_color_counter++;
 
                     if (previous_classified_color != classificationID){
                         previous_classified_color = classificationID;
@@ -545,6 +550,10 @@ static const DeckDriver ColorDriver = {
 
 
 DECK_DRIVER(ColorDriver);
+LOG_GROUP_START(CL_Count)
+    LOG_ADD_CORE(LOG_UINT16, c_count, &revieved_color_counter)
+LOG_GROUP_STOP(CL_Count)
+
 LOG_GROUP_START(COLORDECKDATA)
                 //the raw RGB values of the sensors
                 LOG_ADD_CORE(LOG_UINT16, r0, &tcs34725_data_struct0.rgb_raw_data.r)

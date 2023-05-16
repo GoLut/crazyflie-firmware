@@ -52,7 +52,8 @@
         "semphr.h": "c",
         "digital_filters.h": "c",
         "crazyflie_vlc_motion_commander.h": "c",
-        "driver_tcs34725_interface.h": "c"
+        "driver_tcs34725_interface.h": "c",
+        "system.h": "c"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

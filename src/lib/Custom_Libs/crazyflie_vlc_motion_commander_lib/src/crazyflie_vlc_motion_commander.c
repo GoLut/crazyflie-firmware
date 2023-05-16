@@ -124,6 +124,8 @@ void unlock_VLC_motion_command(){
     DEBUG_PRINT("Motion command is unlocked and idle \n");
     paramSetInt(vlc_flight_status_param, 1);
     state = s_idle;
+    //insert this line to keep the vlc functionality locked
+    // state = s_locked;
 }
 
 void lock_VLC_motion_command(){
@@ -245,7 +247,7 @@ void _VLC_flight_commander(FlightCommand command){
         state = s_idle;
         DEBUG_PRINT("Disabeling PF \n");
         //set motion model to be inactive
-        paramSetInt(motion_model_status_param, 0);
+        // paramSetInt(motion_model_status_param, 0);
 
         break;
     case c_VLC_FLIGHT_ENABLE:

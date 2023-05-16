@@ -10,7 +10,7 @@
 #include "crazyflie_vlc_motion_commander.h"
 
 #define UPDATE_TIME_INTERVAL_PARTICLE_POS 2 //ms
-#define PARTICLE_FILTER_NUM_OF_PARTICLES 150
+#define PARTICLE_FILTER_NUM_OF_PARTICLES 120
 
 #define NUMBER_OF_COLORS 7
 
@@ -100,8 +100,9 @@ typedef struct MotionModelParticles
     uint16_t motion_model_step_counter;
 
     // The last recieved color ID
-    int recieved_color_ID_name;
- 
+    int16_t recieved_color_ID_name;
+
+
     //Last recieved command 
     uint8_t last_recieved_command;
     uint8_t new_recieved_command;

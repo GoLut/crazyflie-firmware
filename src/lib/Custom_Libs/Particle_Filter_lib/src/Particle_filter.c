@@ -35,7 +35,7 @@
 
 #define MAX_VELOCITY_BEFORE_RESET_FILTER 0.4f
 
-int colorIDMapping[8] = {1,2,3,6,7,8,9,0};
+int16_t colorIDMapping[8] = {1,2,3,6,7,8,9,0};
 
 
 bool particle_filter_inited = false;
@@ -551,6 +551,7 @@ void perform_motion_model_step(MotionModelParticle* p, float sampleTimeInS, Acti
 
     //update the steps taken counter
     p->motion_model_step_counter++;
+
 }
 
 //Sets all parameters of a motion model particle to be 0
@@ -913,6 +914,28 @@ void particle_filter_tick(int tick_time_in_ms, uint32_t sys_time_ms){
 
 }
 
+bool has_system_converged(MotionModelParticle* p){
+    //calculates the variance of all particles
+    //if this variance is less than say 10 we have converged
+    uint32_t sum_x = 0;
+    uint32_t sum_y = 0;
+    uint32_t sum_z = 0;
+
+
+    for(int i = 0; i < PARTICLE_FILTER_NUM_OF_PARTICLES; i++){
+        sum_x += (uint32_t)powf(particles[i].x_curr - p->x_mean, 2);
+        sum_y += (uint32_t)powf(particles[i].y_curr - p->y_mean, 2);
+        sum_z += (uint32_t)powf(particles[i].z_curr - p->z_mean, 2);
+    }
+    float varx = (float)sum_x/(float)PARTICLE_FILTER_NUM_OF_PARTICLES;
+    float vary = (float)sum_y/(float)PARTICLE_FILTER_NUM_OF_PARTICLES;
+    float varz = (float)sum_z/(float)PARTICLE_FILTER_NUM_OF_PARTICLES;
+
+    DEBUG_PRINT("VAR: X:%.3f, Y:%.3f ,Z:%3.f \n", (double)varx,(double)vary,(double)varz);
+    return false;
+
+}
+
 
 /* this code is split in 2 sections
 1. Resampling section based on the color identification from the sensors
@@ -990,6 +1013,8 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
             apply_motion_model_update_to_all_particles(&motion_model_particle);
             
             calculate_mean_particle_location(&motion_model_particle);
+            //calculate convergence
+            // has_system_converged(&motion_model_particle);
             
             //sync the locations such that the visualisation interface can be updated
             sync_int16_particle_locations();
@@ -1046,7 +1071,7 @@ LOG_GROUP_START(CStateEstimate)
 LOG_GROUP_STOP(CStateEstimate)
 
 LOG_GROUP_START(color_status)
-                LOG_ADD_CORE(LOG_INT32, color_name_, &motion_model_particle.recieved_color_ID_name)
+                LOG_ADD_CORE(LOG_INT16, color_name_, &motion_model_particle.recieved_color_ID_name)
 LOG_GROUP_STOP(color_status)
 
 // PARAM_GROUP_START(command_to_drone)
