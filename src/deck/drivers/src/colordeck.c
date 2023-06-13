@@ -123,8 +123,8 @@ void initTimer2Interrupt(){
     RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
     
     // Configure TIM6 to run at 10 kHz (100 us period)
-    TIM6->PSC = 3;   // 160 MHz / (1+1) = 80 MHz
-    TIM6->ARR = 9999;   // 80 MHz / (999+1) = 8000 Hz (100 us period)
+    TIM6->PSC = 3;   // 160 MHz / (2+1) = 40 MHz
+    TIM6->ARR = 9999;   // 40 MHz / (9999+1) = 8000 Hz (100 us period)
     TIM6->RCR = 0; // 10KHz/1 = 10kHz
     
     // Enable the interrupt for TIM6

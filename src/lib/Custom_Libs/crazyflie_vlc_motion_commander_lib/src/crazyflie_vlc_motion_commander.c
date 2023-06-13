@@ -125,7 +125,7 @@ void unlock_VLC_motion_command(){
     paramSetInt(vlc_flight_status_param, 1);
     state = s_idle;
     //insert this line to keep the vlc functionality locked
-    // state = s_locked;
+    state = s_locked;
 }
 
 void lock_VLC_motion_command(){

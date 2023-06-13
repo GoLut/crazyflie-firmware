@@ -17,11 +17,15 @@
 //the first few bits used in a data byte for identification
 #define NUM_OF_ID_BITS 2
 //number of frequency samples to recieve before we can determine a bit
-#define FSK_RECENT_FREQUENCY_BUFFER_SIZE 7
+#define FSK_RECENT_FREQUENCY_BUFFER_SIZE 3
+
+//the size of the expeted preamble should be the same as a single bit buffer
+#define PREAMBLE_SIZE FSK_RECENT_FREQUENCY_BUFFER_SIZE
+
 //Analog read pin used
 #define FSK_ANALOGE_READ_PIN DECK_GPIO_TX2
 //timeout before we dicart the frequency samples saved in the generation of a new data_byte
-#define FSK_BIT_RECIEVE_TIMEOUT (FSK_SAMPLES * FSK_RECENT_FREQUENCY_BUFFER_SIZE * 2)
+#define FSK_BIT_RECIEVE_TIMEOUT (FSK_SAMPLES * FSK_RECENT_FREQUENCY_BUFFER_SIZE * 4)
 
 
 //The numbers of samples used every FFT conversion
