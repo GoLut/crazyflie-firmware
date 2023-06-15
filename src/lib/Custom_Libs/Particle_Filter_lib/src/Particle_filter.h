@@ -10,7 +10,7 @@
 #include "crazyflie_vlc_motion_commander.h"
 
 #define UPDATE_TIME_INTERVAL_PARTICLE_POS 2 //ms
-#define PARTICLE_FILTER_NUM_OF_PARTICLES 120
+#define PARTICLE_FILTER_NUM_OF_PARTICLES 140
 
 #define NUMBER_OF_COLORS 7
 
