@@ -1,9 +1,22 @@
-/*
-upload to drone command:
+/*this is the main file for the crazyflie color deck. 
+It instantiates the main tasks and runs the main loop.
+FreeRTOS tasks included are:
+- COLORDECKTASK
+    reads, Processes anc classifies the color data from the TCS34725 sensors.
+- COLORDECKTICKTASK
+    sets the interrupt flags for the color sensors. (1 ms tick is to slow for FSK and is move to ISR)
+- FSKTASK
+    Runs the FSK instance and updates the FSK instance every FSK_TASK_TASK_DELAY_UNTIL ms.
+- UPDATESTATETASK
+    Runs the particle filter update function every UPDATESTATE_TASK_DELAY_UNTIL ms.
 
-CLOAD_CMDS="-w radio://0/80/1M" make cload
-
+To run the code on the drone follow the compile instructions on the crazyflie web page.
+In brief to upload to drone:
+- make clean
+- make
+- CLOAD_CMDS="-w radio://0/80/1M" make cload
 */
+
 
 #define DEBUG_MODULE "colordeck"
 //Standard C libraries
@@ -38,10 +51,11 @@ CLOAD_CMDS="-w radio://0/80/1M" make cload
 //particle filter
 #include "Particle_filter.h"
 
+//CMSIS Cortex-M4 Device Peripheral Access Layer Header File.
 #include "stm32f4xx.h"
 
 
-// RTOS new TASKS
+// RTOS new TASKS, sizes and priority
 #define COLORDECK_TASK_STACKSIZE  (7*configMINIMAL_STACK_SIZE) 
 #define COLORDECK_TASK_NAME "COLORDECKTASK"
 #define COLORDECK_TASK_PRI 3
@@ -62,7 +76,7 @@ CLOAD_CMDS="-w radio://0/80/1M" make cload
 #define FSK_TASK_PRI 2
 #define FSK_TASK_TASK_DELAY_UNTIL 10
 
-//TCSColor sensor defines
+//TCSColor sensor defines if mux is connected to differenc channels change this.
 #define TCS34725_SENS0_TCA9548A_CHANNEL TCA9548A_CHANNEL7
 #define TCS34725_SENS1_TCA9548A_CHANNEL TCA9548A_CHANNEL6
 
@@ -88,13 +102,11 @@ static tcs34725_handle_t tcs34725_handle_sens0, tcs34725_handle_sens1;    /**< t
 //Color data collected by the tcs sensors:
 tcs34725_Color_data tcs34725_data_struct0, tcs34725_data_struct1; //the data buffers of the tcs34725 sensors
 
-
 //Circular buffer to save the recently detected colors:
 #define RECENT_COLOR_BUFFER_SIZE 4
 uint16_t buffer_r[RECENT_COLOR_BUFFER_SIZE]  = {0};
 circular_buf_t cbufCR;
 cbuf_handle_t cbuf_color_recent = &cbufCR;
-
 
 //FSK
 FSK_instance fsk_instance = {0};
@@ -103,10 +115,19 @@ FSK_instance fsk_instance = {0};
 //for logging purposes such that we can differentiate between color measurements
 static uint16_t revieved_color_counter = 0;
 
-
 // Define the static variable to be incremented in the interrupt
 static uint32_t ISR_counter = 0;
 
+/**
+ * @brief Interrupt service routine for TIM6
+ * This function is called every time the counter TIM6 reaches the value TIM6->ARR
+ * This happens every 10 us (100 kHz)
+ * This function is used to sample the ADC to save data for the FSK link
+ * This function is also used to increment the counter ISR_counter
+ * 
+ * @param void
+ * @return void
+ */
 void TIM6_DAC_IRQHandler(void) {
     // Clear the interrupt flag
     TIM6->SR &= ~TIM_SR_UIF;
@@ -117,15 +138,19 @@ void TIM6_DAC_IRQHandler(void) {
     // Increment the counter
     ISR_counter++;
 }
-
+/*
+@brief This function initializes the timer TIM6 to generate an interrupt every UNKNOWN us
+This unknown is because the scaling was I believe off by a factor 2 or division by 2 and I changed it to much to remember 
+But it works :) 
+*/
 void initTimer2Interrupt(){
     // Enable the clock for TIM6
     RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
     
-    // Configure TIM6 to run at 10 kHz (100 us period)
+    // Configure TIM6 to run at: 
     TIM6->PSC = 3;   // 160 MHz / (2+1) = 40 MHz
-    TIM6->ARR = 9999;   // 40 MHz / (9999+1) = 8000 Hz (100 us period)
-    TIM6->RCR = 0; // 10KHz/1 = 10kHz
+    TIM6->ARR = 9999;   // 40 MHz / (9999+1) = ?
+    TIM6->RCR = 0; // ? KHz/1 = ?
     
     // Enable the interrupt for TIM6
     TIM6->DIER |= TIM_DIER_UIE;
@@ -166,15 +191,13 @@ void read_raw_data_to_struct(tcs34725_Color_data *data_struct, tcs34725_handle_t
  * @param tcs_device_handle The TCS34725 sensor handle
  * @param tca_device_handle The TCA9548A sensor handle
  */
-
 void reset_tcs34725_sensor(tcs34725_Color_data *data_struct, tcs34725_handle_t *tcs_device_handle, tca9548a_handle_t * tca_device_handle){
     //reading some initial values. if nothing is available yet we ignore the TCS_result
     read_raw_data_to_struct(data_struct, tcs_device_handle);
+    
     //disable the interrupt flag'
-    // vTaskSuspendAll(); //suspends the scheduler
     if(data_struct->ID == 0){isr_flag_sens0 = false;}
     else{isr_flag_sens1 = false;}
-    // xTaskResumeAll();
 
     //because the pins are sometimes left zero and not caught by the interrupt
     if (data_struct->ID == 0){
@@ -197,9 +220,6 @@ static void colorDeckInit()
         return;
     //Some print statements to show we are doing something.
     DEBUG_PRINT("Initializing my Color Sensor deck \n");
-
-    //initializing the I2C driver of the crazyflie
-    // i2cdevInit(I2C1_DEV);
 
     //New RTOS tasks
     xTaskCreate(colorDeckTask, COLORDECK_TASK_NAME, COLORDECK_TASK_STACKSIZE, NULL, COLORDECK_TASK_PRI, NULL);
@@ -256,7 +276,9 @@ static void colorDeckInit()
     isInit = true;
 }
 
-
+/*
+@runs the FSK update cycle to process the FSK buffer with samples from the ADC.
+*/
 void fskTask(void* parameters) {
     // Wait for system to start
     systemWaitStart();
@@ -270,7 +292,7 @@ void fskTask(void* parameters) {
     DEBUG_PRINT("FSK is running! \n");
     /**
      * Make sure to run when ever data is avaiable to process 
-     * The time limit is FSK_samples / sampling frequency (16 ms when first written)
+     * The time limit is FSK_sample_buffer_size / sampling frequency 
     */
     while (1) {
         vTaskDelayUntil(&xLastWakeTime, M2T(FSK_TASK_TASK_DELAY_UNTIL));
@@ -356,13 +378,6 @@ void colorDeckTickTask(void* arg){
 
     while(1) {
         vTaskDelayUntil(&xLastWakeTime, M2T(COLORDECKTICK_TASK_DELAY_UNTIL));
-        // uint32_t temp = ISR_counter;
-        // DEBUG_PRINT("count: %lu\n", temp);
-        /**
-         * Frequency readout for the Frequency shift keying every ms.
-        */
-        // FSK_tick(&fsk_instance);
-    
         /**
          * Listener to the GPIO pins
          * This function is a replacement for an pin attached ISR on the rising edge. a to-do for later implementations
@@ -379,6 +394,9 @@ void colorDeckTickTask(void* arg){
     }
 }
 
+/*
+    Runs the particle filter tick function every UPDATESTATE_TASK_DELAY_UNTIL ms.
+*/
 void updateStateTask(void* arg){
     // Wait for system to start
     systemWaitStart();
@@ -396,7 +414,7 @@ void updateStateTask(void* arg){
     }
 
     while(1) {
-        //Do every x mili seconds
+        //Do every UPDATESTATE_TASK_DELAY_UNTIL mili seconds
         vTaskDelayUntil(&xLastWakeTime, M2T(UPDATESTATE_TASK_DELAY_UNTIL));
         particle_filter_tick(UPDATESTATE_TASK_DELAY_UNTIL, xTaskGetTickCount());
     }
@@ -472,7 +490,6 @@ void colorDeckTask(void* arg){
         //run loop every COLORDECK_TASK_DELAY_UNTIL ms
         vTaskDelayUntil(&xLastWakeTime, M2T(COLORDECK_TASK_DELAY_UNTIL));
         //we read the sensor data if the interrupt pins of the color sensors have been detected low.
-        
         //flag will be set if new data is avaiable
         readAndProcessColorSensorsIfDataAvaiable();
         
@@ -548,6 +565,11 @@ static const DeckDriver ColorDriver = {
   .test = colorDeckTest,
 };
 
+
+
+/*
+    parameters set for the logging of the color deck data. To read use the crazyflie client.
+*/
 
 DECK_DRIVER(ColorDriver);
 LOG_GROUP_START(CL_Count)
