@@ -1,10 +1,24 @@
 //made with inspiration from: 
 //https://stm32f4-discovery.net/2014/10/stm32f4-fft-example/
 
+/*
+    this file is in charge of the FSK communication protocol.
+    It consists of 2 main functions: 
+    FSK_tick() and FSK_update()
+
+    FSK_tick() is called every 1ms and is in charge of
+        reading the ADC values and placing them in the FSK buffers.
+    FSK_update() is called at a lower priority and is in charge of
+        processing the FSK buffers and performing the FFT.
+        If a byte is found it processes the byte and passes the 
+        information to the VLC motion commander.
+*/
+
 #include "fsk.h"
 
 //FSK:
 #include "arm_math.h"
+//stdlib:
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -17,15 +31,17 @@
 //Crazyflie
 #include "debug.h"
 
-//logging:
+//logging usin crazyflie lib:
 #include "log.h"
 
 //filtering
 #include "digital_filters.h"
 
+//FSK frequencies
+#define FSK_F0 125
+#define FSK_F1 156
 
-
-//to print individual bits:
+//to print individual bits using DEBUG_PRINT:
 //source: https://stackoverflow.com/questions/111928/is-there-a-printf-converter-to-print-in-binary-format
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte)  \
@@ -38,8 +54,7 @@
   ((byte) & 0x02 ? '1' : '0'), \
   ((byte) & 0x01 ? '1' : '0') 
 
-
-
+//Struct for loging FSK parameters in the crazyflie client
 typedef struct Fsk_loggers{
     float32_t read_value;
     uint8_t last_recieved_byte;
@@ -55,13 +70,10 @@ uint16_t buffer_f[FSK_RECENT_FREQUENCY_BUFFER_SIZE]  = {0};
 circular_buf_t cbufFR;
 cbuf_handle_t cbuf_freq_recent = &cbufFR;
 
+//logging
 Fsk_logger fsk_log;
 
-
-
-#define FSK_F0 125
-#define FSK_F1 156
-
+//bytes assigned to the different frequencies
 enum frequency{
     f0 = 0,     // First FSK frequency bin
     f1 = 1      // Second FSK frequency bin
@@ -131,7 +143,7 @@ uint16_t get_current_frequency(FSK_instance* fsk, float32_t Input[]){
         /* peak frequency calulation*/
         peakFrequency = (uint16_t)(maxIndex * FSK_SAMPLINGFREQ / FSK_SAMPLES);
 
-        // // // // debug print
+        //Debug print
         // DEBUG_PRINT("V: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f]\n",
         // (double)(Output[0]), (double)(Output[1]), (double)(Output[2]), (double)(Output[3]),
         // (double)(Output[4]), (double)(Output[5]), (double)(Output[6]), (double)(Output[7])
@@ -305,7 +317,8 @@ bool FSK_buffer_put(FSK_buffer *buff, float32_t value){
 
 
 /**
- * reads the ADC values and places then in the FSK buffers
+ * Reads the ADC values and places then in the FSK buffers
+ * - uses a low pass filter to remove noise spikes caused by the IR beacons
 */
 void FSK_read_ADC_value_and_put_in_buffer(FSK_instance* fsk){
     static  int counter = 0;
@@ -342,7 +355,8 @@ void FSK_read_ADC_value_and_put_in_buffer(FSK_instance* fsk){
 }
 
 /**
- * initializes the FSK instance and all pheripherals needed
+ * initializes the FSK and all pheripherals needed
+ * 
 */
 void FSK_init(FSK_instance* fsk){
     //FSK struct initialization
@@ -484,7 +498,8 @@ void parse_data_byte(uint8_t data_byte){
 }
 
 /**
- * Needs to be called every sampling frequency (1ms) at high(est) priority
+ * places adc data in the FSK buffers
+ * Needs to be called every sampling frequency at high(est) priority
  * Essential to be on time else the sampling time will be off resulting in a wrong FFT.
 */
 void FSK_tick(FSK_instance* fsk){
@@ -495,6 +510,10 @@ void FSK_tick(FSK_instance* fsk){
     }
 }
 
+/**
+ * Resets the FSK byte read if the timeout has passed
+ * @return true if the timeout has passed and the byte has been reset
+*/
 bool fsk_byte_timeout_reset(FSK_instance* fsk){
     if (fsk->FSK_tick_count > (fsk->tick_time_since_last_bit + FSK_BIT_RECIEVE_TIMEOUT)){
         fsk->data_byte = 0;
@@ -507,7 +526,9 @@ bool fsk_byte_timeout_reset(FSK_instance* fsk){
     return false;
 }
 
-
+/**
+ * Processes the found majority frequency and saves the bit processes the byte if the buffer is full
+*/
 bool FSK_process_found_majority_frequency_and_save_byte_if_full(FSK_instance* fsk, int16_t majority_frequency){
     //check if the found majority frequency matches one of the 2 expected frequencies
     if(majority_frequency == fsk->f0){
@@ -546,6 +567,9 @@ bool FSK_process_found_majority_frequency_and_save_byte_if_full(FSK_instance* fs
     }
 }
 
+/**
+* Processes the full byte if completed
+*/
 bool process_byte_if_complete(FSK_instance* fsk){
     //process if the byte is full
     if(fsk->bit_count == 8){
@@ -574,14 +598,16 @@ void FSK_update(FSK_instance* fsk){
         //we wait till sufficient preambles have arrived, 
         //the moment sufficient have arrived we start scanning the packet
         if(Read_and_save_new_FSK_frequency_if_avaiable(fsk)){
-            if(FFT_preamble_count < PREAMBLE_SIZE){
-                if(last_recieved_frequency == FSK_F0){
+            if(FFT_preamble_count < PREAMBLE_SIZE){ //0,1,2
+                if(last_recieved_frequency == FSK_F1){
                     FFT_preamble_count++;
                     DEBUG_PRINT("preamble: %d \n", FFT_preamble_count);
                 }
                 else{
                     FFT_preamble_count = 0;
+                    FFT_count = 0;
                 }
+                FFT_count = 0;
             }
             else{
             //increment a counter when a succesfull frequency read is performed
