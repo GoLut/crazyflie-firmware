@@ -19,8 +19,8 @@
 
 typedef enum {
     c_idle = 0,
-    c_vlc_link_ENABLE = 1,
-    c_vlc_link_DISABLE = 2,
+    c_vlc_link_ENABLE = 13,
+    c_vlc_link_DISABLE = 14,
     c_up = 3,
     c_down = 4,
     c_left = 5,
@@ -31,8 +31,8 @@ typedef enum {
     c_land = 10,
     c_PF_ENABLE = 11,
     c_PF_DISABLE = 12,
-    c_VLC_FLIGHT_ENABLE = 13,
-    c_VLC_FLIGHT_DISABLE = 14
+    c_VLC_FLIGHT_ENABLE = 1,
+    c_VLC_FLIGHT_DISABLE = 2
 
 } FlightCommand;
 
