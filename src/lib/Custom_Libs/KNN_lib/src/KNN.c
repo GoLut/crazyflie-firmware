@@ -2,6 +2,11 @@
 
 int KNNColorIDsUsedMapping[NUMBER_OF_IDS] = {1,2,3,6,7,8,9,0};
 
+/**
+ * @brief The training data used for the KNN algorithm
+ * This data is generated using the python script in the python folder.
+ * It represents the reduced data set of the 8 colors used in the experiment.
+*/
 TrainingPoint trainingPoints[NUMBER_OF_TRAINING_POINTS] = {
 {.x_cart = -0.5223, .y_cart = 0.3073, .ID = 4},
 {.x_cart = 0.4596, .y_cart = -0.1211, .ID = 5},
