@@ -28,7 +28,7 @@ static void advance_head_pointer(cbuf_handle_t me)
 
 // #pragma mark - APIs -
 
-cbuf_handle_t circular_buf_init(uint8_t* buffer, size_t size, cbuf_handle_t cbuf)
+cbuf_handle_t circular_buf_init(uint16_t* buffer, size_t size, cbuf_handle_t cbuf)
 {
 	// assert(buffer && size);
 
@@ -88,7 +88,7 @@ size_t circular_buf_capacity(cbuf_handle_t me)
 	return me->max;
 }
 
-void circular_buf_put(cbuf_handle_t me, uint8_t data)
+void circular_buf_put(cbuf_handle_t me, uint16_t data)
 {
 	// assert(me && me->buffer);
 
@@ -97,7 +97,7 @@ void circular_buf_put(cbuf_handle_t me, uint8_t data)
 	advance_head_pointer(me);
 }
 
-int circular_buf_try_put(cbuf_handle_t me, uint8_t data)
+int circular_buf_try_put(cbuf_handle_t me, uint16_t data)
 {
 	int r = -1;
 
@@ -113,7 +113,7 @@ int circular_buf_try_put(cbuf_handle_t me, uint8_t data)
 	return r;
 }
 
-int circular_buf_get(cbuf_handle_t me, uint8_t* data)
+int circular_buf_get(cbuf_handle_t me, uint16_t* data)
 {
 	// assert(me && data && me->buffer);
 
@@ -144,7 +144,7 @@ bool circular_buf_full(cbuf_handle_t me)
 	return me->full;
 }
 
-int circular_buf_peek(cbuf_handle_t me, uint8_t* data, unsigned int look_ahead_counter)
+int circular_buf_peek(cbuf_handle_t me, uint16_t* data, unsigned int look_ahead_counter)
 {
 	int r = -1;
 	size_t pos;

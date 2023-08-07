@@ -27,6 +27,10 @@
         "stdint.h": "c",
         "color.h": "c",
         "knn.h": "c",
+        "deck.h": "c",
+        "arm_math.h": "c",
+        "fsk.h": "c",
+        "commander.h": "c",
         "driver_tcs34725.h": "c",
         "compare": "c",
         "stdlib.h": "c",
@@ -43,7 +47,13 @@
         "task.h": "c",
         "debug.h": "c",
         "lighthouse_types.h": "c",
-        "imu_types.h": "c"
+        "imu_types.h": "c",
+        "stm32fxxx.h": "c",
+        "semphr.h": "c",
+        "digital_filters.h": "c",
+        "crazyflie_vlc_motion_commander.h": "c",
+        "driver_tcs34725_interface.h": "c",
+        "system.h": "c"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <math.h>
 
-#define NUMBER_OF_TRAINING_POINTS 50
+#define NUMBER_OF_TRAINING_POINTS 60
 #define NUMBER_OF_FEATURES 2
 #define NUMBER_OF_IDS 8 // Don't forget ambient then there are 9
 
