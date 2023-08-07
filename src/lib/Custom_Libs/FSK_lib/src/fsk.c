@@ -43,8 +43,12 @@
 typedef struct Fsk_loggers{
     float32_t read_value;
     uint8_t last_recieved_byte;
+
 }Fsk_logger;
 
+//this is because we need acces to the last recieved frequency for the preamble counter
+//proper way would be to have a peek function that looks in the cirular buffer but don't have time for debugging atm
+static uint16_t last_recieved_frequency = 0;
 
 //Circular buffer to save the recently detected frequencies
 uint16_t buffer_f[FSK_RECENT_FREQUENCY_BUFFER_SIZE]  = {0};
@@ -167,6 +171,9 @@ bool Read_and_save_new_FSK_frequency_if_avaiable(FSK_instance* fsk){
         circular_buf_put(cbuf_freq_recent, found_freq);
         //mark sample buffer clear for re-use
         FSK_buff_clear(fsk, 0);
+        //save in global variable
+        last_recieved_frequency = found_freq;
+
         return true;
     }else if(fsk->buff.buff1_status == full){
         //perform an FFT to get the current frequency from the sample fsk buffer.
@@ -175,6 +182,8 @@ bool Read_and_save_new_FSK_frequency_if_avaiable(FSK_instance* fsk){
         circular_buf_put(cbuf_freq_recent, found_freq);
         //mark sample buffer clear for re-use
         FSK_buff_clear(fsk, 1);
+        //save in global variable
+        last_recieved_frequency = found_freq;
         return true;
     }
     return false;
@@ -486,18 +495,20 @@ void FSK_tick(FSK_instance* fsk){
     }
 }
 
-void fsk_byte_timeout_reset(FSK_instance* fsk){
+bool fsk_byte_timeout_reset(FSK_instance* fsk){
     if (fsk->FSK_tick_count > (fsk->tick_time_since_last_bit + FSK_BIT_RECIEVE_TIMEOUT)){
         fsk->data_byte = 0;
         fsk->bit_count = 0;
         //this way we are not looping this function verry fast when the time has passed
         fsk->tick_time_since_last_bit = fsk->FSK_tick_count;
         // DEBUG_PRINT("TIMEOUT Reset \n");
+        return true;
     }
+    return false;
 }
 
 
-void FSK_process_found_majority_frequency_and_save_byte_if_full(FSK_instance* fsk, int16_t majority_frequency){
+bool FSK_process_found_majority_frequency_and_save_byte_if_full(FSK_instance* fsk, int16_t majority_frequency){
     //check if the found majority frequency matches one of the 2 expected frequencies
     if(majority_frequency == fsk->f0){
         //save the found data bit LSB first
@@ -506,6 +517,8 @@ void FSK_process_found_majority_frequency_and_save_byte_if_full(FSK_instance* fs
         fsk->bit_count++;
         //save the last time we recieved a valid new bit for the timeout
         fsk->tick_time_since_last_bit = fsk->FSK_tick_count;
+        //valid frequency found
+        return true;
     }
     else if(majority_frequency == fsk->f1){
         //save the found data bit LSB first
@@ -514,6 +527,8 @@ void FSK_process_found_majority_frequency_and_save_byte_if_full(FSK_instance* fs
         fsk->bit_count++;
         //save the last time we recieved a valid new bit for the timeout
         fsk->tick_time_since_last_bit = fsk->FSK_tick_count;
+        //valid found
+        return true;
     }
     //No match found with the correct frequency reset the fsk byte read
     else{
@@ -526,10 +541,12 @@ void FSK_process_found_majority_frequency_and_save_byte_if_full(FSK_instance* fs
         // }
         fsk->data_byte = 0;
         fsk->bit_count = 0;
+        //no valid frequency found resetting system and waiting for new preamble
+        return false;
     }
 }
 
-void process_byte_if_complete(FSK_instance* fsk){
+bool process_byte_if_complete(FSK_instance* fsk){
     //process if the byte is full
     if(fsk->bit_count == 8){
         //process byte
@@ -538,7 +555,9 @@ void process_byte_if_complete(FSK_instance* fsk){
         //for now we reset it again.
         fsk->data_byte = 0;
         fsk->bit_count = 0;
+        return true;
     }
+    return false;
 }
 
 /**
@@ -547,14 +566,29 @@ void process_byte_if_complete(FSK_instance* fsk){
 void FSK_update(FSK_instance* fsk){
     //keeps track of the number of FFTs performed on the buffers with adc samples.
     static uint16_t FFT_count = 0;
+    static uint16_t FFT_preamble_count = 0;
     
     //Contains the last found majority frequency found in the buffer
     int16_t majority_frequency = -1;
     if(fsk->isInit){
+        //we wait till sufficient preambles have arrived, 
+        //the moment sufficient have arrived we start scanning the packet
         if(Read_and_save_new_FSK_frequency_if_avaiable(fsk)){
+            if(FFT_preamble_count < PREAMBLE_SIZE){
+                if(last_recieved_frequency == FSK_F0){
+                    FFT_preamble_count++;
+                    DEBUG_PRINT("preamble: %d \n", FFT_preamble_count);
+                }
+                else{
+                    FFT_preamble_count = 0;
+                }
+            }
+            else{
             //increment a counter when a succesfull frequency read is performed
-            FFT_count++;
-            // DEBUG_PRINT("V");
+                FFT_count++;
+                // DEBUG_PRINT("V");
+
+            }
         }else{
         //   DEBUG_PRINT("IV \n");  
         }
@@ -570,14 +604,25 @@ void FSK_update(FSK_instance* fsk){
 
             // DEBUG_PRINT("MF: %d" );
 
-            //process the found majority frequency
-            FSK_process_found_majority_frequency_and_save_byte_if_full(fsk, majority_frequency);
+            //process the found majority frequency if false result reset and wait for preamble
+            if(!FSK_process_found_majority_frequency_and_save_byte_if_full(fsk, majority_frequency)){
+                FFT_preamble_count = 0;
+                DEBUG_PRINT("preamble zero no majority found \n");
 
-            //process if the byte is full
-            process_byte_if_complete(fsk);
+            }
+
+            //process if the byte is full reset and wait for preamble
+            if(process_byte_if_complete(fsk)){
+                FFT_preamble_count = 0;
+                DEBUG_PRINT("preamble zero byte full\n");
+            }
         }
-        //reset the byte read if we have an interrupt in the signal
-        fsk_byte_timeout_reset(fsk);
+        //Reset the byte read if we have an interrupt in the signal
+        //Wait again for preamble
+        if(fsk_byte_timeout_reset(fsk)){
+            // FFT_preamble_count = 0;
+            // DEBUG_PRINT("Preamble_0: False_frequency_found\n");
+        }
     }
 }
 

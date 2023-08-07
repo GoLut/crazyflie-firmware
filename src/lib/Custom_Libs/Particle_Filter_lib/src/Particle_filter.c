@@ -953,6 +953,7 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
     //Timing parameters static initialized to 0 keep track on when a new particle update needs to happen
     static uint32_t time_since_last_resample = 0;
     static uint32_t boot_delay = 0;
+    static uint32_t time_since_last_command_local = 0;
 
     
     //check if the particle filter has inited and a calibration has happend (in case required)
@@ -967,6 +968,17 @@ void particle_filter_update(uint8_t recieved_color_ID, uint32_t sys_time_ms){
 
     //we only do something when we activate the motion model 
     if(motion_model_particle.isMotionModelActive){
+
+        //this is here because sometimes an resample happens right after a move when the colour
+        //sensor would not have had the time to take an new colour sensor but the particles did move
+        //causing the particles too be resampled back or lose location. and then the colour update would come
+        //causing the paticles to get even more lost
+        // proposed solution: reset resample update interval right after movement to be 0 again
+        
+        if (time_since_last_command_local != motion_model_particle.time_since_last_command){
+            time_since_last_resample = sys_time_ms;
+            time_since_last_command_local = motion_model_particle.time_since_last_command;
+        }
 
         //* Resampling happens when:
         //      (New Color data is recieved.   OR   A set time interval has passed).
