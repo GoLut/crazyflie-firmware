@@ -1,3 +1,9 @@
+/**
+ * This file contains VLC the motion commander for the drone.
+ * When a Byte is recieved from the FSK system it gets parced by this file
+ * The system uses the high level commander to execute the commands.
+*/
+
 #include "crazyflie_vlc_motion_commander.h"
 
 #include "commander.h"
@@ -13,8 +19,6 @@
 //we want acces to the parameter framework for system state parameters
 #include "param.h"
 #include "log.h"
-
-
 
 
 #define VLC_COMMAND_DURATION 1000 //duration of a command in ms
@@ -42,7 +46,9 @@ uint16_t buffer_command[COMMAND_BUFFER_SIZE]  = {0};
 circular_buf_t cbufCOMM;
 cbuf_handle_t cbuf_commands = &cbufCOMM;
 
-
+/**
+ * format that is required by the high level commander
+*/
 static void setflightSetpoint(setpoint_t *setpoint, float vx, float vy, float vz)
 {
   setpoint->mode.x = modeVelocity;
@@ -124,8 +130,8 @@ void unlock_VLC_motion_command(){
     DEBUG_PRINT("Motion command is unlocked and idle \n");
     paramSetInt(vlc_flight_status_param, 1);
     state = s_idle;
-    //insert this line to keep the vlc functionality locked
-    state = s_locked;
+    // insert this line to keep the vlc functionality locked disabled off 
+    // state = s_locked;
 }
 
 void lock_VLC_motion_command(){

@@ -6,6 +6,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
+/////////
+// based on code from embedded artistry 
+/////////
 
 /// Opaque circular buffer structure
 // The definition of our circular buffer structure is visible to the user
