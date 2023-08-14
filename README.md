@@ -1,6 +1,6 @@
-#Customised for the Msc. Thesis of Jasper-Jan Lut
+# Customised for the Msc. Thesis of Jasper-Jan Lut
 
-###Custom folders:
+### Custom folders:
 - **src\lib\Custom_Libs**: This folder contains all custom and external libraries.
 
 - **src\deck\drivers\src\colordeck.c**:
