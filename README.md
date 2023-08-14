@@ -1,3 +1,18 @@
+#Customised for the Msc. Thesis of Jasper-Jan Lut
+
+###Custom folders:
+- **src\lib\Custom_Libs**: This folder contains all custom and external libraries.
+
+- **src\deck\drivers\src\colordeck.c**:
+This file is the backbone for the custom Crazyflie (hardware) Deck: "The ColourDeck". 
+
+NOTE: The code requires a working deck mounted underneeth the crazyflie. In combination with a working and calibrated Lighthouse deck.
+
+
+### Other repositories this work requires:
+- MSC_Thesis_Jasper_Jan_Lut_2023_TuDelft: [link](https://github.com/GoLut/MSC_Thesis_Jasper_Jan_Lut_2023_TuDelft.git)
+- The modified Crazyflie client Python code: [link](https://github.com/GoLut/crazyflie-clients-python)
+
 # Crazyflie Firmware  [![CI](https://github.com/bitcraze/crazyflie-firmware/workflows/CI/badge.svg)](https://github.com/bitcraze/crazyflie-firmware/actions?query=workflow%3ACI)
 
 This project contains the source code for the firmware used in the Crazyflie range of platforms, including the Crazyflie 2.X and the Roadrunner.
