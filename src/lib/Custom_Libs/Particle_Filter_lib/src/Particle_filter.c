@@ -42,9 +42,11 @@
 #define PARTICLE_WRONG_COLOR_PROBABILITY 5
 
 //the maximum map size in cm
-#define PARTICLE_FILTER_MAX_MAP_SIZE 127 //cm  8 x 0.75 cm  = 127.333 -> 127
+// #define PARTICLE_FILTER_MAX_MAP_SIZE 127 //cm  8 x 0.75 cm  = 127.333 -> 127 ???????????????????????????????????
+#define PARTICLE_FILTER_MAX_MAP_SIZE 80 //cm  8 x 10 cm cell size measured at the place where the drone flies
+#define PARTICLE_FILTER_CELL_SIZE 10 //cm 10 cell size measured at the place where the drone flies
 //the starting x distance of the drone. Current implementation keeps this fixed
-#define PARTICLE_FILTER_STARTING_X 200//cm
+#define PARTICLE_FILTER_STARTING_X 125//cm
 
 //how many IMU samples before updating all particles
 #define UPDATE_ALL_PARTICLES_AFTER_MOTION_MODEL_STEPS 100 
@@ -72,15 +74,15 @@ MotionModelParticle motion_model_particle;
 Particle particles[PARTICLE_FILTER_NUM_OF_PARTICLES];
 
 //the map initialize the map (use python script for this)
-const uint8_t COLOR_MAP[MAP_SIZE][MAP_SIZE] ={
-{0, 1, 3, 1, 2, 1, 5, 1},
-{2, 5, 6, 5, 0, 3, 6, 2},
-{4, 3, 1, 4, 2, 1, 0, 3},
-{6, 2, 6, 3, 6, 3, 5, 2},
-{1, 3, 4, 2, 5, 2, 1, 6},
-{0, 6, 5, 1, 0, 4, 3, 2},
-{4, 3, 0, 6, 2, 5, 0, 4},
-{0, 5, 1, 5, 3, 1, 3, 2},
+const uint8_t COLOR_MAP[MAP_NUMBER_OF_ROWS][MAP_NUMBER_OF_COLUMNS] ={
+{0, 1, 3, 1, 2, 1, 5, 1, 2, 3, 1, 3, 5, 1, 5, 0},
+{2, 5, 6, 5, 0, 3, 6, 2, 4, 0, 5, 2, 6, 0, 3 ,4},
+{4, 3, 1, 4, 2, 1, 0, 3, 2, 3, 4, 0, 1, 5, 6, 0},
+{6, 2, 6, 3, 6, 3, 5, 2, 6, 1, 2, 5, 2, 4, 3, 1},
+{1, 3, 4, 2, 5, 2, 1, 6, 2, 5, 3, 6, 3, 6, 2, 6},
+{0, 6, 5, 1, 0, 4, 3, 2, 3, 0, 1, 2, 4, 1, 3, 4},
+{4, 3, 0, 6, 2, 5, 0, 4, 2, 6, 3, 0, 5, 6, 5, 2},
+{0, 5, 1, 5, 3, 1, 3, 2, 1, 5, 1, 2, 1, 3, 1, 0},
 };
 
 
@@ -191,17 +193,18 @@ void set_inital_linspace_particle_distibution(){
 
     //calculate the cell size to use
     //NOTE to use this with distance we need adust the cell size to the expected distance.
-    float cell_size = (float)PARTICLE_FILTER_MAX_MAP_SIZE / (float)MAP_SIZE;
+    // float cell_size = (float)PARTICLE_FILTER_MAX_MAP_SIZE / (float)MAP_SIZE;
+    float cell_size = (float)MAP_CELL_SIZE;
     // calc_cell_size_at_particle_distance(&particles[0], &cell_size);
 
     while(counter < PARTICLE_FILTER_NUM_OF_PARTICLES){
-        for (int row = 0; row < MAP_SIZE; row++)
+        for (int row = 0; row < MAP_NUMBER_OF_ROWS; row++)
         {
             if (counter >= PARTICLE_FILTER_NUM_OF_PARTICLES){
                 break;
             }
 
-            for(int coll = 0; coll < MAP_SIZE; coll++){
+            for(int coll = 0; coll < MAP_NUMBER_OF_COLUMNS; coll++){
                 if (counter < PARTICLE_FILTER_NUM_OF_PARTICLES){
 
                     particles[counter].y_curr =((float)coll)*cell_size + 0.5f*cell_size;
@@ -231,8 +234,8 @@ void set_inital_linspace_particle_distibution(){
 //the drone can never converge to this cell
 void set_initial_uniform_particle_distribution(Particle * p){
 //generate z and y location from uniform distribution
-    p->y_curr = (float)uniform_distribution(0,PARTICLE_FILTER_MAX_MAP_SIZE);
-    p->z_curr = (float)uniform_distribution(0,PARTICLE_FILTER_MAX_MAP_SIZE);
+    p->y_curr = (float)uniform_distribution(0,PARTICLE_FILTER_CELL_SIZE * MAP_NUMBER_OF_ROWS);
+    p->z_curr = (float)uniform_distribution(0,PARTICLE_FILTER_CELL_SIZE * MAP_NUMBER_OF_COLUMNS);
 
     // DEBUG_PRINT("px, py, %f, %f \n", (double)p->x_curr, (double)p->y_curr);
     
@@ -256,7 +259,7 @@ void set_particle_initial_probability(Particle * p){
 //          - Number of Colors if not valid ID is found. 
 uint8_t color_map_LUT(int16_t col, int16_t row){
     //Boundary check if we are inside the map projection
-    if((col>=0) && (col< MAP_SIZE) && (row >= 0) && (row < MAP_SIZE)){
+    if((col>=0) && (col< MAP_NUMBER_OF_COLUMNS) && (row >= 0) && (row < MAP_NUMBER_OF_ROWS)){
         //If inside the boundary we would like to return the color
         return COLOR_MAP[row][col];  
     }
@@ -271,7 +274,7 @@ uint8_t color_map_LUT(int16_t col, int16_t row){
 void find_map_color_for_particle(Particle * p, float* cell_size){
     //map drone P_z and P_y to the CELL. z,y positions by scaling with the cell size
     int16_t map_collum = (int16_t)floorf(p->y_curr/ *cell_size);
-    int16_t map_row = (int16_t)(MAP_SIZE-1-(floorf(p->z_curr/ *cell_size)));
+    int16_t map_row = (int16_t)(MAP_NUMBER_OF_ROWS-1-(floorf(p->z_curr/ *cell_size)));
     // DEBUG_PRINT("x,y: %d, %d",map_x, map_y );
     //Lookup the expected color based on the known map
     p->expected_color = color_map_LUT(map_collum, map_row);
@@ -724,7 +727,7 @@ bool have_we_recieved_new_flight_motion_command(MotionModelParticle* p){
 
     //chekck if its different
     if(p->new_recieved_command != c_idle){
-        DEBUG_PRINT("we have _recieved_new_flight_motion_command: %u \n", (uint16_t)p->new_recieved_command);
+        // DEBUG_PRINT("we have _recieved_new_flight_motion_command: %u \n", (uint16_t)p->new_recieved_command);
         //set param back to 0
         paramSetInt(p->id_new_command_param, 0);
         //save last recieved command
