@@ -601,7 +601,7 @@ void FSK_update(FSK_instance* fsk){
             if(FFT_preamble_count < PREAMBLE_SIZE){ //0,1,2
                 if(last_recieved_frequency == FSK_F1){
                     FFT_preamble_count++;
-                    DEBUG_PRINT("preamble: %d \n", FFT_preamble_count);
+                    // DEBUG_PRINT("preamble: %d \n", FFT_preamble_count);
                 }
                 else{
                     FFT_preamble_count = 0;

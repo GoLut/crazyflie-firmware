@@ -193,8 +193,8 @@ void set_inital_linspace_particle_distibution(){
 
     //calculate the cell size to use
     //NOTE to use this with distance we need adust the cell size to the expected distance.
-    // float cell_size = (float)PARTICLE_FILTER_MAX_MAP_SIZE / (float)MAP_SIZE;
-    float cell_size = (float)MAP_CELL_SIZE;
+    float cell_size = (float)PARTICLE_FILTER_MAX_MAP_SIZE / (float)MAP_SIZE;
+    // float cell_size = (float)MAP_CELL_SIZE;
     // calc_cell_size_at_particle_distance(&particles[0], &cell_size);
 
     while(counter < PARTICLE_FILTER_NUM_OF_PARTICLES){
